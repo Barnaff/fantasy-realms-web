@@ -17,6 +17,7 @@ import { useInspectGesture } from '../../hooks/useInspectGesture.ts';
 import type { CardInstance } from '../../types/card.ts';
 import type { ResolvedCard } from '../../types/card.ts';
 import { formatCardText } from '../card/CardText.tsx';
+import { HoverPreview, type HoverInfo } from '../card/HoverPreview.tsx';
 import { TutorialOverlay, shouldShowTutorial } from './TutorialOverlay.tsx';
 
 /* ═══════════════════════════════════════════════════════════
@@ -101,24 +102,6 @@ function DrawnCardOverlay({ card, onDone }: { card: ResolvedCard; onDone: () => 
 }
 
 
-/* ═══════════════════════════════════════════════════════════
-   Hover preview (desktop)
-   ═══════════════════════════════════════════════════════════ */
-
-function HoverPreview({ card }: { card: ResolvedCard }) {
-  return (
-    <motion.div
-      className="fixed z-40 pointer-events-none hidden sm:block"
-      style={{ top: '50%', right: 16, y: '-50%' }}
-      initial={{ opacity: 0, x: 30, scale: 0.9 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 30, scale: 0.9 }}
-      transition={{ duration: 0.12 }}
-    >
-      <CardPreview card={card} />
-    </motion.div>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════
    Animated turn counter
@@ -180,7 +163,7 @@ function RiverCard({
   card: CardInstance; index: number; isDrawPhase: boolean;
   constraintsRef: React.RefObject<HTMLDivElement | null>;
   onDraw: (i: number) => void;
-  onHover: (c: ResolvedCard | null) => void;
+  onHover: (info: HoverInfo | null) => void;
 }) {
   const resolved = resolveCard(card);
   const isDragging = useRef(false);
@@ -213,7 +196,7 @@ function RiverCard({
       dragElastic={0.15}
       onDragStart={() => { isDragging.current = true; dragStartTime.current = Date.now(); vibrate(8); }}
       onDragEnd={handleDragEnd}
-      onMouseEnter={() => isDrawPhase && onHover(resolved)}
+      onMouseEnter={(e) => isDrawPhase && onHover({ card: resolved, rect: e.currentTarget.getBoundingClientRect() })}
       onMouseLeave={() => onHover(null)}
     >
       <Card
@@ -245,7 +228,7 @@ function HandCard({
   constraintsRef: React.RefObject<HTMLDivElement | null>;
   onSelect: (i: number) => void;
   onDiscard: (i: number) => void;
-  onHover: (c: ResolvedCard | null) => void;
+  onHover: (info: HoverInfo | null) => void;
 }) {
   const resolved = resolveCard(card);
   const { rotate, lift } = fanTransform(index, total);
@@ -307,7 +290,7 @@ function HandCard({
       dragElastic={0.2}
       onDragStart={() => { isDragging.current = true; dragStartTime.current = Date.now(); vibrate(8); }}
       onDragEnd={handleDragEnd}
-      onMouseEnter={() => onHover(resolved)}
+      onMouseEnter={(e) => onHover({ card: resolved, rect: e.currentTarget.getBoundingClientRect() })}
       onMouseLeave={() => onHover(null)}
     >
       {/* Discard glow */}
@@ -344,7 +327,7 @@ export function GameBoard() {
   const finalizeHand = useGameStore(s => s.finalizeHand);
   const getLiveScore = useGameStore(s => s.getLiveScore);
 
-  const [hoverCard, setHoverCard] = useState<ResolvedCard | null>(null);
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [drawnCard, setDrawnCard] = useState<ResolvedCard | null>(null);
   const [selectedHandIndex, setSelectedHandIndex] = useState<number | null>(null);
   const [sparkle, setSparkle] = useState<{ x: number; y: number; color: string } | null>(null);
@@ -494,7 +477,7 @@ export function GameBoard() {
                     constraintsRef={boardRef}
                     onDraw={handleDrawFromRiver}
 
-                    onHover={setHoverCard}
+                    onHover={setHoverInfo}
                   />
                 ))}
               </AnimatePresence>
@@ -566,7 +549,7 @@ export function GameBoard() {
                 constraintsRef={boardRef}
                 onSelect={handleHandSelect}
                 onDiscard={handleDiscard}
-                onHover={setHoverCard}
+                onHover={setHoverInfo}
               />
             ))}
           </AnimatePresence>
@@ -584,7 +567,7 @@ export function GameBoard() {
       <AnimatePresence>{sparkle && <Sparkles x={sparkle.x} y={sparkle.y} color={sparkle.color} />}</AnimatePresence>
       <AnimatePresence>{drawnCard && <DrawnCardOverlay card={drawnCard} onDone={() => setDrawnCard(null)} />}</AnimatePresence>
       <CardInspectOverlay card={inspectResolved} position={inspectPos} onClose={dismissInspect} />
-      <AnimatePresence>{hoverCard && <HoverPreview card={hoverCard} />}</AnimatePresence>
+      <HoverPreview info={hoverInfo} />
 
       {/* ═══ Tutorial (first encounter only) ═══ */}
       <AnimatePresence>

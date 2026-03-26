@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.0 — 2026-03-26
+
+### New Features
+- Firebase integration: Google sign-in and anonymous auto-login
+- Cloud save/restore: game state saved at checkpoints, restored on refresh
+- Player stats tracking: runs, victories, best score, win rate (viewable from title screen)
+- Desktop hover preview: large card preview appears near hovered card on all screens
+- Forfeit run option with confirmation dialog on map screen
+- Non-crossing map paths: connection algorithm ensures paths never overlap
+- Map flipped bottom-to-top: start at bottom, boss at top
+
+### Improvements
+- Auto sign-in as anonymous guest, upgrade to Google anytime
+- Save mid-encounter: refresh restores exact hand, river, and turn state
+- Rewards screen restores with same card choices on refresh
+- Map auto-scrolls to current node with sticky header bar
+- Hover preview works on rewards, scoring, and merchant screens
+
+### Fixes
+- Card inspect preview exit animation prevents arrow position jumps
+- Scoring phase now saveable and restorable
+
 ## 0.2.0 — 2026-03-26
 
 ### New Features

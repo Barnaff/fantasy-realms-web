@@ -93,31 +93,114 @@ export function generateMap(rng: SeededRNG, config: Partial<MapConfig> = {}): Ga
   };
   layers.push({ depth: cfg.layerCount - 1, nodes: [bossNode] });
 
-  // Generate connections between adjacent layers
+  // Generate non-crossing connections between adjacent layers
   for (let i = 0; i < layers.length - 1; i++) {
-    const currentLayer = layers[i];
-    const nextLayer = layers[i + 1];
+    const curNodes = layers[i].nodes;   // sorted by column (they already are)
+    const nxtNodes = layers[i + 1].nodes;
+    const curLen = curNodes.length;
+    const nxtLen = nxtNodes.length;
 
-    // Ensure every node in current layer connects to at least one in next
-    for (const node of currentLayer.nodes) {
-      const connectionCount = Math.min(
-        rng.nextInt(1, 2),
-        nextLayer.nodes.length,
-      );
-      const targets = rng.pick(nextLayer.nodes, connectionCount);
-      for (const target of targets) {
-        if (!node.connections.includes(target.id)) {
-          node.connections.push(target.id);
+    // Track which next-layer nodes have incoming edges
+    const hasIncoming = new Array(nxtLen).fill(false);
+
+    // For each current node, compute a "natural" target range in the next layer
+    // that preserves left-to-right ordering (no crossings).
+    // Map each current node's column position proportionally to next layer indices.
+    for (let ci = 0; ci < curLen; ci++) {
+      // Proportional position in next layer
+      const ratio = curLen === 1 ? 0.5 : ci / (curLen - 1);
+      const center = ratio * (nxtLen - 1);
+
+      // Primary target: closest node to our proportional position
+      const primary = Math.round(center);
+      curNodes[ci].connections.push(nxtNodes[primary].id);
+      hasIncoming[primary] = true;
+
+      // Sometimes add one adjacent neighbor (left or right, but never crossing)
+      if (nxtLen > 1 && rng.next() < 0.4) {
+        // Pick an adjacent target that won't cross other edges
+        const candidates: number[] = [];
+        if (primary > 0) candidates.push(primary - 1);
+        if (primary < nxtLen - 1) candidates.push(primary + 1);
+
+        // Filter to avoid crossings: the secondary target column must not
+        // be less than the primary target of our left neighbor, or greater
+        // than the primary target of our right neighbor
+        const validCandidates = candidates.filter(t => {
+          // Check no crossing with left neighbor
+          if (ci > 0) {
+            const leftConns = curNodes[ci - 1].connections;
+            for (const connId of leftConns) {
+              const connIdx = nxtNodes.findIndex(n => n.id === connId);
+              if (connIdx > t) return false; // would cross
+            }
+          }
+          // Check no crossing with right neighbor (if already connected)
+          if (ci < curLen - 1) {
+            const rightConns = curNodes[ci + 1].connections;
+            for (const connId of rightConns) {
+              const connIdx = nxtNodes.findIndex(n => n.id === connId);
+              if (connIdx < t) return false; // would cross
+            }
+          }
+          return true;
+        });
+
+        if (validCandidates.length > 0) {
+          const secondary = validCandidates[rng.nextInt(0, validCandidates.length - 1)];
+          if (!curNodes[ci].connections.includes(nxtNodes[secondary].id)) {
+            curNodes[ci].connections.push(nxtNodes[secondary].id);
+            hasIncoming[secondary] = true;
+          }
         }
       }
     }
 
-    // Ensure every node in next layer has at least one incoming connection
-    for (const nextNode of nextLayer.nodes) {
-      const hasIncoming = currentLayer.nodes.some(n => n.connections.includes(nextNode.id));
-      if (!hasIncoming) {
-        const randomSource = currentLayer.nodes[rng.nextInt(0, currentLayer.nodes.length - 1)];
-        randomSource.connections.push(nextNode.id);
+    // Ensure every next-layer node has at least one incoming connection
+    for (let ni = 0; ni < nxtLen; ni++) {
+      if (hasIncoming[ni]) continue;
+
+      // Find the closest current-layer node (by proportional position) that
+      // won't create a crossing
+      const ratio = nxtLen === 1 ? 0.5 : ni / (nxtLen - 1);
+      const bestCur = Math.round(ratio * (curLen - 1));
+
+      // Verify no crossing — check that no existing connection from bestCur
+      // or its neighbors would cross this new edge
+      let source = bestCur;
+      let valid = true;
+
+      // Simple crossing check: all connections from nodes left of source
+      // should go to targets <= ni, and all from right should go >= ni
+      for (let ci = 0; ci < curLen; ci++) {
+        for (const connId of curNodes[ci].connections) {
+          const connIdx = nxtNodes.findIndex(n => n.id === connId);
+          if (ci < source && connIdx > ni) { valid = false; break; }
+          if (ci > source && connIdx < ni) { valid = false; break; }
+        }
+        if (!valid) break;
+      }
+
+      if (!valid) {
+        // Try neighbors of bestCur
+        for (const tryOffset of [1, -1, 2, -2]) {
+          const trySrc = bestCur + tryOffset;
+          if (trySrc < 0 || trySrc >= curLen) continue;
+          let ok = true;
+          for (let ci = 0; ci < curLen; ci++) {
+            for (const connId of curNodes[ci].connections) {
+              const connIdx = nxtNodes.findIndex(n => n.id === connId);
+              if (ci < trySrc && connIdx > ni) { ok = false; break; }
+              if (ci > trySrc && connIdx < ni) { ok = false; break; }
+            }
+            if (!ok) break;
+          }
+          if (ok) { source = trySrc; valid = true; break; }
+        }
+      }
+
+      if (!curNodes[source].connections.includes(nxtNodes[ni].id)) {
+        curNodes[source].connections.push(nxtNodes[ni].id);
       }
     }
   }

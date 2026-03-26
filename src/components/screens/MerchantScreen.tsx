@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../../hooks/useGameStore.ts';
 import { CARD_DEF_MAP } from '../../data/cards.ts';
@@ -6,6 +6,7 @@ import { RELIC_DEF_MAP } from '../../data/relics.ts';
 import { resolveCard } from '../../engine/scoring.ts';
 import { Card } from '../card/Card.tsx';
 import { CardInspectOverlay } from '../card/CardInspectOverlay.tsx';
+import { HoverPreview, type HoverInfo } from '../card/HoverPreview.tsx';
 import { useInspectGesture } from '../../hooks/useInspectGesture.ts';
 import type { ResolvedCard } from '../../types/card.ts';
 
@@ -46,6 +47,8 @@ export function MerchantScreen() {
     useCallback((id: string) => cardMap.get(id) ?? null, [cardMap]),
   );
 
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
+
   if (!merchantStock || !state.run) return null;
 
   const gold = state.run.gold;
@@ -77,7 +80,12 @@ export function MerchantScreen() {
               const canAfford = gold >= item.price;
               return (
                 <div key={item.defId} className="flex flex-col items-center gap-1 snap-center flex-shrink-0">
-                  <Card card={resolved} dimmed={!canAfford} />
+                  <div
+                    onMouseEnter={(e) => setHoverInfo({ card: resolved, rect: e.currentTarget.getBoundingClientRect() })}
+                    onMouseLeave={() => setHoverInfo(null)}
+                  >
+                    <Card card={resolved} dimmed={!canAfford} />
+                  </div>
                   <button
                     onClick={() => { if (!isActive.current) merchantBuyCard(item.defId, item.price); }}
                     disabled={!canAfford}
@@ -127,13 +135,18 @@ export function MerchantScreen() {
               const resolved = resolveCard(card);
               const canAfford = gold >= merchantStock.removalCost;
               return (
-                <Card
+                <div
                   key={card.instanceId}
-                  card={resolved}
-                  scale={0.72}
-                  dimmed={!canAfford}
-                  onClick={() => { if (!isActive.current && canAfford) merchantRemoveCard(card.instanceId); }}
-                />
+                  onMouseEnter={(e) => setHoverInfo({ card: resolved, rect: e.currentTarget.getBoundingClientRect() })}
+                  onMouseLeave={() => setHoverInfo(null)}
+                >
+                  <Card
+                    card={resolved}
+                    scale={0.72}
+                    dimmed={!canAfford}
+                    onClick={() => { if (!isActive.current && canAfford) merchantRemoveCard(card.instanceId); }}
+                  />
+                </div>
               );
             })}
           </div>
@@ -153,6 +166,7 @@ export function MerchantScreen() {
       </div>
 
       <CardInspectOverlay card={inspectCard} position={inspectPos} onClose={dismiss} />
+      <HoverPreview info={hoverInfo} />
     </div>
   );
 }

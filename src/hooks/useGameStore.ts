@@ -21,6 +21,8 @@ interface GameStore {
   // Run management
   newGame: (seed?: number) => void;
   resetToTitle: () => void;
+  restoreState: (saved: GameState) => void;
+  forfeitRun: () => void;
 
   // Map navigation
   selectMapNode: (nodeId: string) => void;
@@ -70,11 +72,55 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  restoreState: (saved) => {
+    // Restore the full saved state — including mid-encounter if applicable
+    // If the player was in a non-resumable phase, fall back to map
+    const nonResumablePhases = new Set(['game_over', 'victory', 'title']);
+    const phase = nonResumablePhases.has(saved.phase) ? 'map' : saved.phase;
+
+    // If falling back to map, clear encounter state
+    const needsReset = phase === 'map' && saved.phase !== 'map';
+    const restored: GameState = needsReset
+      ? {
+          ...saved,
+          phase: 'map',
+          encounter: null,
+          river: null,
+          hand: { cards: [], maxSize: 7 },
+          discardPile: [],
+          turnsRemaining: 0,
+          turnPhase: 'draw',
+          riverDiscardCount: 0,
+          lastScoreResult: null,
+          pendingChoice: null,
+          postEncounterReward: null,
+          actionLog: [],
+        }
+      : { ...saved, phase };
+
+    set({
+      state: restored,
+      merchantStock: null,
+      removalsThisRun: 0,
+    });
+  },
+
   resetToTitle: () => {
     set({
       state: createInitialGameState(),
       merchantStock: null,
       removalsThisRun: 0,
+    });
+  },
+
+  forfeitRun: () => {
+    const { state: currentState } = get();
+    if (!currentState.run) return;
+    set({
+      state: {
+        ...currentState,
+        phase: 'game_over',
+      },
     });
   },
 

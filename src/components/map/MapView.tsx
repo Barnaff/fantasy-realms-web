@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { GameMap, MapNode, MapNodeType } from '../../types/map.ts';
 
 interface MapViewProps {
@@ -30,43 +31,79 @@ const VIRTUAL_WIDTH = 600;
 const LAYER_SPACING = 100;
 const NODE_SPACING = 120;
 
-function getNodePosition(node: MapNode, totalInLayer: number): { x: number; y: number } {
+function getNodePosition(node: MapNode, totalInLayer: number, totalLayers: number): { x: number; y: number } {
   const startX = VIRTUAL_WIDTH / 2 - ((totalInLayer - 1) * NODE_SPACING) / 2;
+  // Flip: layer 0 at bottom, last layer at top
+  const maxY = 60 + (totalLayers - 1) * LAYER_SPACING;
   return {
     x: startX + node.column * NODE_SPACING,
-    y: 60 + node.layer * LAYER_SPACING,
+    y: maxY - node.layer * LAYER_SPACING,
   };
 }
 
 export function MapView({ map, currentNodeId, availableNodeIds, onSelectNode }: MapViewProps) {
   const allNodes = map.layers.flatMap(l => l.nodes);
   const nodeMap = new Map(allNodes.map(n => [n.id, n]));
+  const totalLayers = map.layers.length;
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const totalHeight = map.layers.length * LAYER_SPACING + 100;
+  const totalHeight = totalLayers * LAYER_SPACING + 100;
+
+  // Auto-scroll to the current node on mount
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const currentNode = nodeMap.get(currentNodeId);
+    if (!currentNode) return;
+
+    const layerNodes = map.layers[currentNode.layer]?.nodes ?? [];
+    const pos = getNodePosition(currentNode, layerNodes.length, totalLayers);
+
+    // The SVG is rendered with viewBox, so we need to map virtual coords to actual scroll position
+    const svgEl = container.querySelector('svg');
+    if (!svgEl) return;
+
+    const svgRect = svgEl.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    // Scale from virtual coords to actual pixels
+    const scaleY = svgRect.height / (totalHeight + 40);
+    const actualY = pos.y * scaleY;
+
+    // Scroll so the current node is centered in the visible area
+    const targetScroll = actualY - containerRect.height / 2 + svgRect.top - containerRect.top + container.scrollTop;
+    container.scrollTo({ top: targetScroll, behavior: 'smooth' });
+  }, [currentNodeId]);
 
   return (
-    <div className="flex flex-col items-center px-2 py-4 sm:p-4">
-      <h2 className="font-display text-xl sm:text-2xl text-ink mb-2">
-        Act {map.act} of {map.totalActs}
-      </h2>
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Sticky header */}
+      <div className="flex-shrink-0 text-center py-2 px-4 bg-parchment-100">
+        <h2 className="font-display text-xl sm:text-2xl text-ink">
+          Act {map.act} of {map.totalActs}
+        </h2>
+      </div>
 
-      {/* SVG-based map that scales to fit the container */}
-      <div className="w-full max-w-[600px]">
-        <svg
-          viewBox={`0 0 ${VIRTUAL_WIDTH} ${totalHeight + 40}`}
-          className="w-full h-auto bg-parchment-200/30 rounded-xl border border-parchment-300"
-          preserveAspectRatio="xMidYMid meet"
-        >
+      {/* Scrollable map area */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 pb-4 sm:px-4">
+        <div className="flex justify-center">
+          <div className="w-full max-w-[600px]">
+            <svg
+              viewBox={`0 0 ${VIRTUAL_WIDTH} ${totalHeight + 40}`}
+              className="w-full h-auto bg-parchment-200/30 rounded-xl border border-parchment-300"
+              preserveAspectRatio="xMidYMid meet"
+            >
           {/* Draw connections */}
           {allNodes.map(node => {
             const layerNodes = map.layers[node.layer]?.nodes ?? [];
-            const fromPos = getNodePosition(node, layerNodes.length);
+            const fromPos = getNodePosition(node, layerNodes.length, totalLayers);
 
             return node.connections.map(targetId => {
               const targetNode = nodeMap.get(targetId);
               if (!targetNode) return null;
               const targetLayerNodes = map.layers[targetNode.layer]?.nodes ?? [];
-              const toPos = getNodePosition(targetNode, targetLayerNodes.length);
+              const toPos = getNodePosition(targetNode, targetLayerNodes.length, totalLayers);
 
               const isAvailable = node.id === currentNodeId && availableNodeIds.includes(targetId);
 
@@ -89,7 +126,7 @@ export function MapView({ map, currentNodeId, availableNodeIds, onSelectNode }: 
           {/* Draw nodes */}
           {allNodes.map(node => {
             const layerNodes = map.layers[node.layer]?.nodes ?? [];
-            const pos = getNodePosition(node, layerNodes.length);
+            const pos = getNodePosition(node, layerNodes.length, totalLayers);
             const isAvailable = availableNodeIds.includes(node.id);
             const isCurrent = node.id === currentNodeId;
 
@@ -158,7 +195,9 @@ export function MapView({ map, currentNodeId, availableNodeIds, onSelectNode }: 
               </g>
             );
           })}
-        </svg>
+            </svg>
+          </div>
+        </div>
       </div>
     </div>
   );

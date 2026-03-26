@@ -5,6 +5,7 @@ import { CARD_DEF_MAP } from '../../data/cards.ts';
 import { RELIC_DEF_MAP } from '../../data/relics.ts';
 import { Card } from '../card/Card.tsx';
 import { CardInspectOverlay } from '../card/CardInspectOverlay.tsx';
+import { HoverPreview, type HoverInfo } from '../card/HoverPreview.tsx';
 import { useInspectGesture } from '../../hooks/useInspectGesture.ts';
 import { clsx } from 'clsx';
 import type { ResolvedCard } from '../../types/card.ts';
@@ -14,6 +15,7 @@ export function PostEncounterScreen() {
   const selectCardReward = useGameStore(s => s.selectCardReward);
   const skipCardReward = useGameStore(s => s.skipCardReward);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
   const reward = state.postEncounterReward;
 
@@ -97,12 +99,16 @@ export function PostEncounterScreen() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.12 + i * 0.08 }}
           >
-            <div className={clsx(
-              'rounded-lg transition-all duration-200',
-              selectedIdx === i
-                ? 'ring-2 ring-gold shadow-[0_0_12px_rgba(212,164,55,0.4)] scale-105 -translate-y-1'
-                : '',
-            )}>
+            <div
+              className={clsx(
+                'rounded-lg transition-all duration-200',
+                selectedIdx === i
+                  ? 'ring-2 ring-gold shadow-[0_0_12px_rgba(212,164,55,0.4)] scale-105 -translate-y-1'
+                  : '',
+              )}
+              onMouseEnter={(e) => setHoverInfo({ card, rect: e.currentTarget.getBoundingClientRect() })}
+              onMouseLeave={() => setHoverInfo(null)}
+            >
               <Card
                 card={card}
                 selected={selectedIdx === i}
@@ -147,6 +153,7 @@ export function PostEncounterScreen() {
       </button>
 
       <CardInspectOverlay card={inspectCard} position={inspectPos} onClose={dismiss} />
+      <HoverPreview info={hoverInfo} />
     </div>
   );
 }

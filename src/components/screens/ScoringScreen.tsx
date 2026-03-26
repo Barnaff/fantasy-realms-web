@@ -1,8 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useGameStore } from '../../hooks/useGameStore.ts';
 import { resolveCard } from '../../engine/scoring.ts';
 import { Card } from '../card/Card.tsx';
 import { CardInspectOverlay } from '../card/CardInspectOverlay.tsx';
+import { HoverPreview, type HoverInfo } from '../card/HoverPreview.tsx';
 import { formatCardText } from '../card/CardText.tsx';
 import { useInspectGesture } from '../../hooks/useInspectGesture.ts';
 import { clsx } from 'clsx';
@@ -28,6 +29,8 @@ export function ScoringScreen() {
   const { inspectCard, inspectPos, dismiss, containerHandlers } = useInspectGesture(
     useCallback((id: string) => cardMap.get(id) ?? null, [cardMap]),
   );
+
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
   if (!score || !encounter) return null;
 
@@ -70,7 +73,12 @@ export function ScoringScreen() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.06 }}
               >
-                <Card card={resolved} blanked={entry?.blanked} />
+                <div
+                  onMouseEnter={(e) => setHoverInfo({ card: resolved, rect: e.currentTarget.getBoundingClientRect() })}
+                  onMouseLeave={() => setHoverInfo(null)}
+                >
+                  <Card card={resolved} blanked={entry?.blanked} />
+                </div>
                 <div className={clsx(
                   'font-display text-base sm:text-lg',
                   entry?.blanked ? 'text-ink-muted line-through' :
@@ -144,6 +152,7 @@ export function ScoringScreen() {
       </div>
 
       <CardInspectOverlay card={inspectCard} position={inspectPos} onClose={dismiss} />
+      <HoverPreview info={hoverInfo} />
     </div>
   );
 }
