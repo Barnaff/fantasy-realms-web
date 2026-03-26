@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { GameState } from '../types/game.ts';
 import type { ResolvedCard } from '../types/card.ts';
 import { createInitialGameState, startRun, startEncounter, navigateToNode } from '../engine/run.ts';
-import { drawFromRiver, drawFromDeck, discardToRiver, discardFromHand } from '../engine/river.ts';
+import { drawFromRiver, drawFromDeck, discardToRiver } from '../engine/river.ts';
 import { MAX_RIVER_DISCARDS } from '../types/game.ts';
 import { scoreHand, resolveCard } from '../engine/scoring.ts';
 import { executeDiscardEffect } from '../engine/effects.ts';

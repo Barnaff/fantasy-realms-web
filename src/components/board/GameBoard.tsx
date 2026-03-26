@@ -90,7 +90,7 @@ function DrawnCardOverlay({ card, onDone }: { card: ResolvedCard; onDone: () => 
         initial={{ scale: 0.15, opacity: 0, rotateY: 90 }}
         animate={{ scale: 1, opacity: 1, rotateY: 0 }}
         exit={{ scale: 0.4, opacity: 0, y: 200 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 20, exit: { duration: 0.3, ease: 'easeIn' } }}
+        transition={{ type: 'spring', stiffness: 260, damping: 20 }}
         style={{ perspective: 600 }}
       >
         <CardPreview card={card} />
@@ -99,37 +99,6 @@ function DrawnCardOverlay({ card, onDone }: { card: ResolvedCard; onDone: () => 
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Inspect overlay
-   ═══════════════════════════════════════════════════════════ */
-
-function InspectOverlay({ card, onClose }: { card: ResolvedCard; onClose: () => void }) {
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.12 }}
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.7, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.7, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <CardPreview card={card} />
-        <div className="text-center mt-3">
-          <button onClick={onClose} className="bg-parchment-300/90 backdrop-blur text-ink font-display px-8 py-2 rounded-xl text-sm active:scale-95 transition-transform shadow">
-            Close
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════
    Hover preview (desktop)

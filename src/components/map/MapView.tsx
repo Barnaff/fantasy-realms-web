@@ -1,4 +1,3 @@
-import { clsx } from 'clsx';
 import type { GameMap, MapNode, MapNodeType } from '../../types/map.ts';
 
 interface MapViewProps {
