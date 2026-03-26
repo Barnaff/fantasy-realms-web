@@ -17,6 +17,7 @@ import { useInspectGesture } from '../../hooks/useInspectGesture.ts';
 import type { CardInstance } from '../../types/card.ts';
 import type { ResolvedCard } from '../../types/card.ts';
 import { formatCardText } from '../card/CardText.tsx';
+import { TutorialOverlay, shouldShowTutorial } from './TutorialOverlay.tsx';
 
 /* ═══════════════════════════════════════════════════════════
    Utilities
@@ -150,13 +151,15 @@ function DeckPile({ count, onClick, canDraw }: { count: number; onClick: () => v
       disabled={!canDraw}
       className={clsx(
         'relative w-[56px] h-[78px] sm:w-[64px] sm:h-[90px] rounded-lg flex-shrink-0',
-        'border-2 border-parchment-600 bg-parchment-700 shadow-lg',
+        'border-2 bg-parchment-700 shadow-lg',
         'flex flex-col items-center justify-center gap-0.5',
-        canDraw && 'cursor-pointer active:scale-95 hover:shadow-xl hover:border-gold',
-        !canDraw && 'opacity-40',
+        canDraw && 'cursor-pointer active:scale-95 border-green-400/70 shadow-[0_0_12px_rgba(34,197,94,0.4)] ring-2 ring-green-400/40',
+        !canDraw && 'opacity-40 border-parchment-600',
       )}
       whileHover={canDraw ? { scale: 1.05, y: -2 } : undefined}
       whileTap={canDraw ? { scale: 0.95 } : undefined}
+      animate={canDraw ? { boxShadow: ['0 0 8px rgba(34,197,94,0.3)', '0 0 16px rgba(34,197,94,0.5)', '0 0 8px rgba(34,197,94,0.3)'] } : undefined}
+      transition={canDraw ? { repeat: Infinity, duration: 2, ease: 'easeInOut' } : undefined}
     >
       <div className="w-[40px] h-[50px] sm:w-[46px] sm:h-[60px] rounded border border-parchment-500/40 bg-parchment-800/50 flex items-center justify-center">
         <span className="font-display text-parchment-400 text-base sm:text-lg">FR</span>
@@ -218,6 +221,7 @@ function RiverCard({
         scale={0.72}
         dimmed={!isDrawPhase}
         glowing={isDrawPhase}
+        glowColor="green"
         onClick={() => {
           if (Date.now() - dragStartTime.current < 150 || !isDragging.current) {
             if (isDrawPhase) onDraw(index);
@@ -317,6 +321,8 @@ function HandCard({
         card={resolved}
         selected={isSelected}
         blanked={isBlanked}
+        glowing={isDiscardPhase}
+        glowColor={isSelected ? 'red' : 'green'}
         onClick={() => {
           if (Date.now() - dragStartTime.current < 150 || !isDragging.current) onSelect(index);
         }}
@@ -342,6 +348,7 @@ export function GameBoard() {
   const [drawnCard, setDrawnCard] = useState<ResolvedCard | null>(null);
   const [selectedHandIndex, setSelectedHandIndex] = useState<number | null>(null);
   const [sparkle, setSparkle] = useState<{ x: number; y: number; color: string } | null>(null);
+  const [showTutorial, setShowTutorial] = useState(() => shouldShowTutorial(state.run?.encountersCleared ?? 1));
 
   // Build resolver for all visible cards
   const allCards = useMemo(() => {
@@ -578,6 +585,11 @@ export function GameBoard() {
       <AnimatePresence>{drawnCard && <DrawnCardOverlay card={drawnCard} onDone={() => setDrawnCard(null)} />}</AnimatePresence>
       <CardInspectOverlay card={inspectResolved} position={inspectPos} onClose={dismissInspect} />
       <AnimatePresence>{hoverCard && <HoverPreview card={hoverCard} />}</AnimatePresence>
+
+      {/* ═══ Tutorial (first encounter only) ═══ */}
+      <AnimatePresence>
+        {showTutorial && <TutorialOverlay onDismiss={() => setShowTutorial(false)} />}
+      </AnimatePresence>
     </div>
   );
 }

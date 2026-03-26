@@ -50,6 +50,8 @@ export interface CardProps {
   blanked?: boolean;
   dimmed?: boolean;
   glowing?: boolean;
+  /** Color for the glow effect: 'gold' (default), 'green', 'red' */
+  glowColor?: 'gold' | 'green' | 'red';
   onClick?: () => void;
   onLongPress?: (pos: LongPressPosition) => void;
   className?: string;
@@ -74,6 +76,7 @@ export function Card({
   blanked = false,
   dimmed = false,
   glowing = false,
+  glowColor = 'gold',
   onClick,
   onLongPress,
   className,
@@ -102,7 +105,9 @@ export function Card({
           !selected && 'shadow-md',
           blanked && 'grayscale',
           dimmed && !selected && 'opacity-50 saturate-50',
-          glowing && !dimmed && 'shadow-[0_0_8px_rgba(212,164,55,0.35)]',
+          glowing && !dimmed && glowColor === 'gold' && 'shadow-[0_0_8px_rgba(212,164,55,0.35)]',
+          glowing && !dimmed && glowColor === 'green' && 'shadow-[0_0_10px_rgba(34,197,94,0.5)] ring-2 ring-green-400/60',
+          glowing && !dimmed && glowColor === 'red' && 'shadow-[0_0_10px_rgba(239,68,68,0.5)] ring-2 ring-red-400/60',
           onClick && !dimmed && !blanked && 'cursor-pointer',
         )}
         data-inspect-id={card.instanceId}

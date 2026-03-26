@@ -77,9 +77,10 @@ export function MapView({ map, currentNodeId, availableNodeIds, onSelectNode }: 
                   y1={fromPos.y}
                   x2={toPos.x}
                   y2={toPos.y}
-                  stroke={isAvailable ? '#c9a227' : '#d9c9a0'}
+                  stroke={isAvailable ? '#22c55e' : '#d9c9a0'}
                   strokeWidth={isAvailable ? 3 : 1.5}
                   strokeDasharray={isAvailable ? undefined : '4 4'}
+                  opacity={isAvailable ? 0.8 : 1}
                 />
               );
             });
@@ -119,9 +120,19 @@ export function MapView({ map, currentNodeId, availableNodeIds, onSelectNode }: 
                 {isCurrent && (
                   <circle cx={pos.x} cy={pos.y} r={r + 6} fill="none" stroke="#d4a437" strokeWidth={3} />
                 )}
-                {/* Available highlight */}
-                {isAvailable && !node.visited && (
-                  <circle cx={pos.x} cy={pos.y} r={r + 4} fill="none" stroke="#c9a227" strokeWidth={2} opacity={0.5} />
+                {/* Available – pulsing green glow */}
+                {isAvailable && !isCurrent && (
+                  <>
+                    {/* Outer pulse ring */}
+                    <circle cx={pos.x} cy={pos.y} r={r + 8} fill="none" stroke="#22c55e" strokeWidth={2}>
+                      <animate attributeName="r" values={`${r + 4};${r + 10};${r + 4}`} dur="2s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    {/* Inner green ring */}
+                    <circle cx={pos.x} cy={pos.y} r={r + 3} fill="none" stroke="#22c55e" strokeWidth={2.5}>
+                      <animate attributeName="opacity" values="0.8;0.4;0.8" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                  </>
                 )}
                 {/* Node circle */}
                 <circle
