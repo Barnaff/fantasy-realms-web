@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 — 2026-03-27
+
+### Major: Phaser 3 Rewrite
+- Complete migration from React/framer-motion to Phaser 3 game engine
+- All rendering now in canvas — no DOM elements, no React
+- 11 Phaser Scenes replace React components (Boot, Title, Map, Encounter, BossIntro, Scoring, PostEncounter, Merchant, Event, Rest, GameOver)
+- GameManager singleton replaces Zustand store with event-driven state
+- CardObject renders cards as Phaser Containers with art, borders, tags, effects
+- Full encounter gameplay: draw from deck/river, discard from hand, reorder cards
+- Fan layout for hand cards with drag-to-discard and drag-to-reorder
+- Map scene with node selection, connection lines, and type-colored nodes
+- Responsive scaling via Phaser.Scale.RESIZE
+- All pure TypeScript game logic (types, data, engine, scoring) kept unchanged
+
+### Removed
+- React, framer-motion, Zustand, Tailwind CSS, clsx dependencies
+- All React components, hooks, and CSS
+
 ## 0.4.0 — 2026-03-27
 
 ### Balance Overhaul

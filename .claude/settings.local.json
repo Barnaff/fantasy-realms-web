@@ -44,7 +44,13 @@
       "Bash(python -c \":*)",
       "Bash(pip install:*)",
       "Bash(grep \"^  {$\" /c/Users/kobic/repos/fantasy-realms-web/src/data/cards.ts)",
-      "Bash(node -e \"const fs=require\\(''fs''\\); const content=fs.readFileSync\\(''C:/Users/kobic/repos/fantasy-realms-web/src/data/cards.ts'',''utf8''\\); const matches=content.match\\(/id: ''/g\\); console.log\\(''Total id fields:'', matches.length\\); const topLevel=content.match\\(/^  \\\\{$/gm\\); console.log\\(''Card objects:'', topLevel.length\\);\")"
+      "Bash(node -e \"const fs=require\\(''fs''\\); const content=fs.readFileSync\\(''C:/Users/kobic/repos/fantasy-realms-web/src/data/cards.ts'',''utf8''\\); const matches=content.match\\(/id: ''/g\\); console.log\\(''Total id fields:'', matches.length\\); const topLevel=content.match\\(/^  \\\\{$/gm\\); console.log\\(''Card objects:'', topLevel.length\\);\")",
+      "Bash(aws --version)",
+      "Bash(aws sts:*)",
+      "Bash(where aws:*)",
+      "Read(//c/Program Files/Amazon/AWSCLIV2/**)",
+      "Read(//c/Users/kobic/repos/fantasy-realms-web/$LOCALAPPDATA/Programs/Amazon/AWSCLIV2/**)",
+      "Bash(npm list:*)"
     ]
   }
 }

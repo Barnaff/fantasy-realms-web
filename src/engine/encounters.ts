@@ -53,24 +53,6 @@ const BOSS_STIPULATIONS: BossStipulation[] = [
   },
 ];
 
-const ENCOUNTER_NAMES = [
-  'The Whispering Woods',
-  'Goblin Foothills',
-  'The Sunken Temple',
-  'Stormwall Pass',
-  'The Blighted Marshes',
-  'Crystal Caverns',
-  'The Frozen Wastes',
-  'Thornwood Depths',
-  'The Shattered Plains',
-  'Moonlit Ruins',
-  'The Serpent\'s Den',
-  'Ashfall Valley',
-  'The Forgotten Library',
-  'Deadman\'s Hollow',
-  'The Iron Citadel',
-];
-
 const BOSS_NAMES = [
   'The Dragon of Ember Peak',
   'The Lich of the Sunken Throne',
