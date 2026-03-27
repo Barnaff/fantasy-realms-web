@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import { clsx } from 'clsx';
 import {
   motion,
@@ -21,6 +21,25 @@ import { HoverPreview, type HoverInfo } from '../card/HoverPreview.tsx';
 import { TutorialOverlay, shouldShowTutorial } from './TutorialOverlay.tsx';
 
 /* ═══════════════════════════════════════════════════════════
+   Desktop detection
+   ═══════════════════════════════════════════════════════════ */
+
+const smQuery = typeof window !== 'undefined' ? window.matchMedia('(min-width: 640px)') : null;
+function useIsDesktop() {
+  return useSyncExternalStore(
+    (cb) => { smQuery?.addEventListener('change', cb); return () => smQuery?.removeEventListener('change', cb); },
+    () => smQuery?.matches ?? false,
+    () => false,
+  );
+}
+
+/** Card scales: mobile vs desktop */
+const SCALES = {
+  mobile: { hand: 2, river: 1.6, handSelected: 2.3 },
+  desktop: { hand: 2.7, river: 2, handSelected: 3.1 },
+} as const;
+
+/* ═══════════════════════════════════════════════════════════
    Utilities
    ═══════════════════════════════════════════════════════════ */
 
@@ -32,8 +51,8 @@ function fanTransform(index: number, total: number) {
   if (total <= 1) return { rotate: 0, lift: 0 };
   const mid = (total - 1) / 2;
   const t = (index - mid) / mid;
-  const maxAngle = Math.min(3.5 * total, 24);
-  return { rotate: t * maxAngle, lift: t * t * 6 };
+  const maxAngle = Math.min(2 * total, 12);
+  return { rotate: t * maxAngle, lift: t * t * 3 };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -127,24 +146,69 @@ function TurnCounter({ turnsLeft, total }: { turnsLeft: number; total: number })
    Deck pile
    ═══════════════════════════════════════════════════════════ */
 
-function DeckPile({ count, onClick, canDraw }: { count: number; onClick: () => void; canDraw: boolean }) {
+function DeckHint({ show }: { show: boolean }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!show) { setVisible(false); return; }
+    const t = setTimeout(() => setVisible(true), 2000);
+    return () => clearTimeout(t);
+  }, [show]);
+
+  if (!visible) return null;
+
+  return (
+    <motion.div
+      className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none z-20"
+      initial={{ opacity: 0, y: -5 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        className="bg-ink/80 text-parchment-50 text-[9px] sm:text-[10px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap shadow-lg"
+        animate={{ y: [0, -4, 0] }}
+        transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+      >
+        Tap to draw!
+      </motion.div>
+      <motion.div
+        className="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-l-transparent border-r-transparent border-t-ink/80"
+        animate={{ y: [0, -4, 0] }}
+        transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+      />
+    </motion.div>
+  );
+}
+
+function DeckPile({ count, onClick, canDraw, riverScale, showHint }: { count: number; onClick: () => void; canDraw: boolean; riverScale: number; showHint?: boolean }) {
+  const w = Math.round(72 * riverScale);
+  const h = Math.round(100 * riverScale);
+  const innerW = Math.round(52 * riverScale);
+  const innerH = Math.round(68 * riverScale);
   return (
     <motion.button
       onClick={canDraw ? onClick : undefined}
       disabled={!canDraw}
       className={clsx(
-        'relative w-[56px] h-[78px] sm:w-[64px] sm:h-[90px] rounded-lg flex-shrink-0',
+        'relative rounded-lg flex-shrink-0',
         'border-2 bg-parchment-700 shadow-lg',
         'flex flex-col items-center justify-center gap-0.5',
         canDraw && 'cursor-pointer active:scale-95 border-green-400/70 shadow-[0_0_12px_rgba(34,197,94,0.4)] ring-2 ring-green-400/40',
         !canDraw && 'opacity-40 border-parchment-600',
       )}
+      style={{ width: w, height: h }}
       whileHover={canDraw ? { scale: 1.05, y: -2 } : undefined}
       whileTap={canDraw ? { scale: 0.95 } : undefined}
       animate={canDraw ? { boxShadow: ['0 0 8px rgba(34,197,94,0.3)', '0 0 16px rgba(34,197,94,0.5)', '0 0 8px rgba(34,197,94,0.3)'] } : undefined}
       transition={canDraw ? { repeat: Infinity, duration: 2, ease: 'easeInOut' } : undefined}
     >
-      <div className="w-[40px] h-[50px] sm:w-[46px] sm:h-[60px] rounded border border-parchment-500/40 bg-parchment-800/50 flex items-center justify-center">
+      <AnimatePresence>
+        {showHint && <DeckHint show={showHint} />}
+      </AnimatePresence>
+      <div
+        className="rounded border border-parchment-500/40 bg-parchment-800/50 flex items-center justify-center"
+        style={{ width: innerW, height: innerH }}
+      >
         <span className="font-display text-parchment-400 text-base sm:text-lg">FR</span>
       </div>
       <span className="text-parchment-300 text-[7px] sm:text-[8px] font-bold">{count}</span>
@@ -158,12 +222,13 @@ function DeckPile({ count, onClick, canDraw }: { count: number; onClick: () => v
 
 function RiverCard({
   card, index, isDrawPhase, constraintsRef,
-  onDraw, onHover,
+  onDraw, onHover, cardScale,
 }: {
   card: CardInstance; index: number; isDrawPhase: boolean;
   constraintsRef: React.RefObject<HTMLDivElement | null>;
   onDraw: (i: number) => void;
-  onHover: (info: HoverInfo | null) => void;
+  onHover: React.Dispatch<React.SetStateAction<HoverInfo | null>>;
+  cardScale: number;
 }) {
   const resolved = resolveCard(card);
   const isDragging = useRef(false);
@@ -197,11 +262,11 @@ function RiverCard({
       onDragStart={() => { isDragging.current = true; dragStartTime.current = Date.now(); vibrate(8); }}
       onDragEnd={handleDragEnd}
       onMouseEnter={(e) => isDrawPhase && onHover({ card: resolved, rect: e.currentTarget.getBoundingClientRect() })}
-      onMouseLeave={() => onHover(null)}
+      onMouseLeave={() => onHover(prev => prev?.card.instanceId === resolved.instanceId ? null : prev)}
     >
       <Card
         card={resolved}
-        scale={0.72}
+        scale={cardScale}
         dimmed={!isDrawPhase}
         glowing={isDrawPhase}
         glowColor="green"
@@ -219,64 +284,136 @@ function RiverCard({
    Hand card (draggable, with inspect button)
    ═══════════════════════════════════════════════════════════ */
 
+// Global drag state shared by all HandCards
+const handDragState = { dragging: false, fromIndex: -1, previewIndex: -1 };
+
 function HandCard({
-  card, index, total, isSelected, isBlanked, isDiscardPhase,
-  constraintsRef, onSelect, onDiscard, onHover,
+  card, index, total, isBlanked, isDiscardPhase,
+  constraintsRef, onDiscard, onReorder, onHover, handScale,
+  onDragPreview,
 }: {
   card: CardInstance; index: number; total: number;
-  isSelected: boolean; isBlanked: boolean; isDiscardPhase: boolean;
+  isBlanked: boolean; isDiscardPhase: boolean;
   constraintsRef: React.RefObject<HTMLDivElement | null>;
-  onSelect: (i: number) => void;
   onDiscard: (i: number) => void;
-  onHover: (info: HoverInfo | null) => void;
+  onReorder: (from: number, to: number) => void;
+  onHover: React.Dispatch<React.SetStateAction<HoverInfo | null>>;
+  handScale: number;
+  onDragPreview: (fromIndex: number, previewIndex: number) => void;
 }) {
   const resolved = resolveCard(card);
   const { rotate, lift } = fanTransform(index, total);
 
-  const cardW = 100; // canonical card width
+  const cardW = 100 * handScale;
   const overlap = Math.min(cardW * 0.72, (window.innerWidth - 32) / Math.max(total, 1));
   const mid = (total - 1) / 2;
   const fanX = (index - mid) * overlap;
 
   const isDragging = useRef(false);
   const dragStartTime = useRef(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isDraggingState, setIsDraggingState] = useState(false);
+  const [discarded, setDiscarded] = useState(false);
   const controls = useAnimation();
 
-  // Target fan position
-  const targetX = fanX;
-  const targetY = isSelected ? -(lift + 28) : lift;
-  const targetRotate = isSelected ? 0 : rotate;
-  const targetScale = isSelected ? 1.18 : 1;
+  // Compute visual offset: if another card is dragging, shift this card to make room
+  let visualOffsetX = 0;
+  if (handDragState.dragging && handDragState.fromIndex !== index) {
+    const from = handDragState.fromIndex;
+    const preview = handDragState.previewIndex;
+    if (from < index && preview >= index) {
+      // Dragged card is moving right past us → shift left
+      visualOffsetX = -overlap;
+    } else if (from > index && preview <= index) {
+      // Dragged card is moving left past us → shift right
+      visualOffsetX = overlap;
+    }
+  }
 
-  const handleDragEnd = (_: unknown, info: PanInfo) => {
-    isDragging.current = false;
-    if (isDiscardPhase && info.offset.y < -60) {
-      vibrate(20);
-      onDiscard(index);
-    } else {
-      // Animate back to correct fan position
-      controls.start({
-        x: targetX,
-        y: targetY,
-        rotate: targetRotate,
-        scale: targetScale,
-        opacity: 1,
-        transition: { type: 'spring', stiffness: 320, damping: 22 },
-      });
+  const targetX = fanX + visualOffsetX;
+  const targetY = lift;
+  const targetRotate = rotate;
+  const targetScale = handScale;
+
+  const hoverScale = handScale * 1.5;
+  const hoverY = -(Math.abs(lift) + 40);
+
+  const animateTo = useCallback((hovered: boolean) => {
+    const s = hovered ? hoverScale : targetScale;
+    const y = hovered ? hoverY : targetY;
+    const r = hovered ? 0 : targetRotate;
+    controls.start({
+      x: targetX, y, rotate: r, scale: s, opacity: 1,
+      transition: { type: 'spring', stiffness: 400, damping: 22 },
+    });
+  }, [hoverScale, hoverY, targetScale, targetX, targetY, targetRotate, controls]);
+
+  const handleDrag = (_: unknown, info: PanInfo) => {
+    const slotsMoved = Math.round(info.offset.x / overlap);
+    const preview = Math.max(0, Math.min(total - 1, index + slotsMoved));
+    if (preview !== handDragState.previewIndex) {
+      handDragState.previewIndex = preview;
+      onDragPreview(index, preview);
     }
   };
 
-  // Sync animate target whenever props change
+  const handleDragEnd = (_: unknown, info: PanInfo) => {
+    isDragging.current = false;
+    handDragState.dragging = false;
+    handDragState.fromIndex = -1;
+    handDragState.previewIndex = -1;
+    setIsDraggingState(false);
+
+    if (isDiscardPhase && info.offset.y < -60) {
+      setDiscarded(true);
+      vibrate(20);
+      onDiscard(index);
+      onDragPreview(-1, -1); // clear preview
+      return;
+    }
+
+    // Reorder on drop
+    const slotsMoved = Math.round(info.offset.x / overlap);
+    if (slotsMoved !== 0) {
+      const targetIndex = Math.max(0, Math.min(total - 1, index + slotsMoved));
+      if (targetIndex !== index) {
+        vibrate(8);
+        onReorder(index, targetIndex);
+      }
+    }
+
+    onDragPreview(-1, -1); // clear preview
+    setIsHovered(false);
+  };
+
+  // Sync animate target whenever props change — skip while this card is being dragged
   useEffect(() => {
+    if (isDragging.current) return;
     controls.start({
       x: targetX,
-      y: targetY,
-      rotate: targetRotate,
-      scale: targetScale,
+      y: isHovered ? hoverY : targetY,
+      rotate: isHovered ? 0 : targetRotate,
+      scale: isHovered ? hoverScale : targetScale,
       opacity: 1,
       transition: { type: 'spring', stiffness: 320, damping: 22 },
     });
-  }, [targetX, targetY, targetRotate, targetScale, controls]);
+  }, [targetX, targetY, targetRotate, targetScale, isHovered, controls]);
+
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    if (handDragState.dragging) return;
+    setIsHovered(true);
+    onHover({ card: resolved, rect: e.currentTarget.getBoundingClientRect() });
+    animateTo(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (handDragState.dragging) return;
+    setIsHovered(false);
+    onHover(prev => prev?.card.instanceId === resolved.instanceId ? null : prev);
+    animateTo(false);
+  };
+
+  if (discarded) return null;
 
   return (
     <motion.div
@@ -284,31 +421,32 @@ function HandCard({
       animate={controls}
       exit={{ opacity: 0, scale: 0.3, y: -60, transition: { duration: 0.25 } }}
       className="absolute origin-bottom touch-none"
-      style={{ zIndex: isSelected ? 30 : index + 1 }}
-      drag={isDiscardPhase}
+      style={{ zIndex: isDraggingState || isHovered ? 30 : index + 1 }}
+      drag
       dragConstraints={constraintsRef}
       dragElastic={0.2}
-      onDragStart={() => { isDragging.current = true; dragStartTime.current = Date.now(); vibrate(8); }}
+      dragSnapToOrigin
+      onDragStart={() => {
+        isDragging.current = true;
+        handDragState.dragging = true;
+        handDragState.fromIndex = index;
+        handDragState.previewIndex = index;
+        setIsDraggingState(true);
+        dragStartTime.current = Date.now();
+        setIsHovered(false);
+        onHover(null);
+        vibrate(8);
+      }}
+      onDrag={handleDrag}
       onDragEnd={handleDragEnd}
-      onMouseEnter={(e) => onHover({ card: resolved, rect: e.currentTarget.getBoundingClientRect() })}
-      onMouseLeave={() => onHover(null)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
-      {/* Discard glow */}
-      <AnimatePresence>
-        {isSelected && isDiscardPhase && (
-          <motion.div className="absolute -inset-1 rounded-xl bg-tag-fire/20 -z-10" initial={{ opacity: 0 }} animate={{ opacity: [0.3, 0.6, 0.3] }} exit={{ opacity: 0 }} transition={{ repeat: Infinity, duration: 1.5 }} />
-        )}
-      </AnimatePresence>
-
       <Card
         card={resolved}
-        selected={isSelected}
         blanked={isBlanked}
         glowing={isDiscardPhase}
-        glowColor={isSelected ? 'red' : 'green'}
-        onClick={() => {
-          if (Date.now() - dragStartTime.current < 150 || !isDragging.current) onSelect(index);
-        }}
+        glowColor="green"
       />
     </motion.div>
   );
@@ -320,16 +458,25 @@ function HandCard({
    ═══════════════════════════════════════════════════════════ */
 
 export function GameBoard() {
+  const isDesktop = useIsDesktop();
+  const scales = isDesktop ? SCALES.desktop : SCALES.mobile;
+
   const state = useGameStore(s => s.state);
   const drawFromDeckAction = useGameStore(s => s.drawFromDeckAction);
   const drawCard = useGameStore(s => s.drawCard);
   const discardCard = useGameStore(s => s.discardCard);
+  const reorderHand = useGameStore(s => s.reorderHand);
   const finalizeHand = useGameStore(s => s.finalizeHand);
   const getLiveScore = useGameStore(s => s.getLiveScore);
 
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
+  // Bump this to force re-render when drag preview position changes (other cards shift)
+  const [, setDragPreviewTick] = useState(0);
+  const handleDragPreview = useCallback((_from: number, _preview: number) => {
+    setDragPreviewTick(t => t + 1);
+  }, []);
   const [drawnCard, setDrawnCard] = useState<ResolvedCard | null>(null);
-  const [selectedHandIndex, setSelectedHandIndex] = useState<number | null>(null);
+  // Selection removed — only hover triggers arrows now
   const [sparkle, setSparkle] = useState<{ x: number; y: number; color: string } | null>(null);
   const [showTutorial, setShowTutorial] = useState(() => shouldShowTutorial(state.run?.encountersCleared ?? 1));
 
@@ -366,12 +513,9 @@ export function GameBoard() {
 
   // Resolved hand for arrow relations
   const resolvedHand = useMemo(() => state.hand.cards.map(resolveCard), [state.hand.cards]);
-  const selectedResolvedCard = useMemo(() => {
-    if (selectedHandIndex === null || selectedHandIndex >= resolvedHand.length) return null;
-    return resolvedHand[selectedHandIndex];
-  }, [selectedHandIndex, resolvedHand]);
+  const selectedResolvedCard = null; // selection removed; arrows use hover only
 
-  useEffect(() => { setSelectedHandIndex(null); }, [state.turnPhase]);
+  useEffect(() => { setHoverInfo(null); }, [state.turnPhase]);
 
   const flashSparkle = useCallback((color = '#d4a437') => {
     setSparkle({ x: window.innerWidth / 2, y: window.innerHeight / 2, color });
@@ -401,20 +545,7 @@ export function GameBoard() {
     vibrate(20);
     flashSparkle('#c4433a');
     discardCard(i);
-    setSelectedHandIndex(null);
   }, [discardCard, flashSparkle]);
-
-  /* ── Hand tap ── */
-  const handleHandSelect = useCallback((i: number) => {
-    vibrate(8);
-    if (isDiscardPhase) {
-      if (selectedHandIndex === i) handleDiscard(i);
-      else setSelectedHandIndex(i);
-    } else {
-      setSelectedHandIndex(selectedHandIndex === i ? null : i);
-    }
-  }, [isDiscardPhase, selectedHandIndex, handleDiscard]);
-
 
   return (
     <div ref={boardRef} className="flex flex-col h-[calc(100dvh-44px)]" {...inspectHandlers}>
@@ -440,6 +571,31 @@ export function GameBoard() {
               </span>
             </motion.div>
             {state.encounter.bossStipulation && <div className="mt-1 text-tag-fire font-bold text-[10px]">{formatCardText(state.encounter.bossStipulation.description)}</div>}
+            {/* Encounter modifiers */}
+            {state.encounter.modifiers && state.encounter.modifiers.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-1 mt-1.5">
+                {state.encounter.modifiers.map(mod => {
+                  const isBonus = mod.value > 0;
+                  return (
+                    <span
+                      key={mod.tag}
+                      className={clsx(
+                        'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold border',
+                        isBonus
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-red-100 text-red-700 border-red-300',
+                      )}
+                    >
+                      <span>{isBonus ? '+' : ''}{mod.value}</span>
+                      <span className="font-display">{mod.tag}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            {state.encounter.flavor && (
+              <div className="text-[8px] sm:text-[9px] text-ink-muted/50 italic mt-1">{state.encounter.flavor}</div>
+            )}
           </div>
         )}
 
@@ -458,14 +614,14 @@ export function GameBoard() {
 
             {/* Grid of river cards + deck */}
             <div className="flex flex-wrap gap-1.5 sm:gap-2">
-              {/* Deck pile */}
-              {isDrawPhase && (
-                <DeckPile
-                  count={state.river.deck.length}
-                  onClick={handleDrawFromDeck}
-                  canDraw={state.river.deck.length > 0 && state.phase === 'player_turn'}
-                />
-              )}
+              {/* Deck pile — always visible */}
+              <DeckPile
+                count={state.river.deck.length}
+                onClick={handleDrawFromDeck}
+                canDraw={isDrawPhase && state.river.deck.length > 0 && state.phase === 'player_turn'}
+                riverScale={scales.river}
+                showHint={isDrawPhase && state.riverDiscardCount === 0 && state.river.cards.length === 0 && state.phase === 'player_turn'}
+              />
 
               <AnimatePresence mode="popLayout">
                 {state.river.cards.map((card, i) => (
@@ -476,8 +632,8 @@ export function GameBoard() {
                     isDrawPhase={isDrawPhase && state.phase === 'player_turn'}
                     constraintsRef={boardRef}
                     onDraw={handleDrawFromRiver}
-
                     onHover={setHoverInfo}
+                    cardScale={scales.river}
                   />
                 ))}
               </AnimatePresence>
@@ -521,11 +677,6 @@ export function GameBoard() {
             Hand <span className="text-ink-muted/50">({state.hand.cards.length})</span>
           </h3>
           <AnimatePresence mode="wait">
-            {isDiscardPhase && selectedHandIndex !== null && (
-              <motion.span className="text-[8px] sm:text-[9px] text-tag-fire font-bold" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-                Tap again to discard
-              </motion.span>
-            )}
             {isDrawPhase && (
               <motion.span className="text-[8px] sm:text-[9px] text-tag-flood/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 Tap 🔍 to inspect
@@ -535,21 +686,22 @@ export function GameBoard() {
         </div>
 
         {/* Fan — overflow visible so dragged cards aren't clipped */}
-        <div className="relative flex items-end justify-center h-[108px] sm:h-[148px] overflow-visible">
-          <AnimatePresence mode="popLayout">
+        <div className="relative flex items-end justify-center h-[220px] sm:h-[380px] overflow-visible">
+          <AnimatePresence>
             {state.hand.cards.map((card, i) => (
               <HandCard
                 key={card.instanceId}
                 card={card}
                 index={i}
                 total={state.hand.cards.length}
-                isSelected={selectedHandIndex === i}
                 isBlanked={blankedDefIds.has(card.defId)}
                 isDiscardPhase={isDiscardPhase && state.phase === 'player_turn'}
                 constraintsRef={boardRef}
-                onSelect={handleHandSelect}
                 onDiscard={handleDiscard}
+                onReorder={reorderHand}
                 onHover={setHoverInfo}
+                handScale={scales.hand}
+                onDragPreview={handleDragPreview}
               />
             ))}
           </AnimatePresence>
@@ -558,7 +710,7 @@ export function GameBoard() {
 
       {/* ═══ Relation arrows ═══ */}
       <CardRelationArrows
-        selectedCard={inspectResolved ?? selectedResolvedCard}
+        selectedCard={inspectResolved ?? selectedResolvedCard ?? (hoverInfo ? hoverInfo.card : null)}
         hand={resolvedHand}
         inspectedInstanceId={inspectResolved?.instanceId ?? null}
       />
@@ -567,7 +719,6 @@ export function GameBoard() {
       <AnimatePresence>{sparkle && <Sparkles x={sparkle.x} y={sparkle.y} color={sparkle.color} />}</AnimatePresence>
       <AnimatePresence>{drawnCard && <DrawnCardOverlay card={drawnCard} onDone={() => setDrawnCard(null)} />}</AnimatePresence>
       <CardInspectOverlay card={inspectResolved} position={inspectPos} onClose={dismissInspect} />
-      <HoverPreview info={hoverInfo} />
 
       {/* ═══ Tutorial (first encounter only) ═══ */}
       <AnimatePresence>

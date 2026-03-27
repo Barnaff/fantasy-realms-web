@@ -221,9 +221,17 @@ function applyCopyTagsOfHighest(hand: ResolvedCard[]): ResolvedCard[] {
 export function scoreHand(
   handInstances: CardInstance[],
   relics: RelicInstance[] = [],
+  encounterModifiers: { tag: Tag; value: number }[] = [],
 ): ScoreResult {
   // Resolve all cards
   let resolved = handInstances.map(resolveCard);
+
+  // Apply encounter modifiers (tag bonuses/penalties per level theme)
+  for (const mod of encounterModifiers) {
+    resolved = resolved.map(c =>
+      c.tags.includes(mod.tag) ? { ...c, baseValue: c.baseValue + mod.value } : c
+    );
+  }
 
   // Apply relic base value modifiers
   for (const relic of relics) {

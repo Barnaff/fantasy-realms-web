@@ -32,6 +32,7 @@ interface GameStore {
   drawFromDeckAction: () => void;
   drawCard: (riverIndex: number) => void;
   discardCard: (handIndex: number) => void;
+  reorderHand: (fromIndex: number, toIndex: number) => void;
   finalizeHand: () => void;
   acknowledgeScore: () => void;
 
@@ -59,7 +60,12 @@ interface GameStore {
   getResolvedHand: () => ResolvedCard[];
 }
 
-export const useGameStore = create<GameStore>((set, get) => ({
+export const useGameStore = create<GameStore>((set, get) => {
+  // Expose store for debugging
+  if (typeof window !== 'undefined') {
+    (window as unknown as Record<string, unknown>).__GAME_STORE = { get };
+  }
+  return ({
   state: createInitialGameState(),
   merchantStock: null,
   removalsThisRun: 0,
@@ -260,6 +266,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const newDiscardCount = currentState.riverDiscardCount + 1;
 
+    // Verify card was actually removed from hand
+    if (hand.cards.some(c => c.instanceId === discardedCard.instanceId)) {
+      console.error('[BUG] Discarded card still in hand!', discardedCard.instanceId);
+      // Force remove it
+      hand = {
+        ...hand,
+        cards: hand.cards.filter(c => c.instanceId !== discardedCard.instanceId),
+      };
+    }
+
     let newState: GameState = {
       ...currentState,
       river,
@@ -288,7 +304,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Auto-end encounter when 10th card is discarded to the river
     if (newDiscardCount >= MAX_RIVER_DISCARDS) {
-      const result = scoreHand(newState.hand.cards, newState.relics);
+      const result = scoreHand(newState.hand.cards, newState.relics, newState.encounter?.modifiers);
       newState = {
         ...newState,
         phase: 'scoring',
@@ -299,11 +315,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ state: newState });
   },
 
+  reorderHand: (fromIndex, toIndex) => {
+    const { state: currentState } = get();
+    const cards = [...currentState.hand.cards];
+    if (fromIndex < 0 || fromIndex >= cards.length || toIndex < 0 || toIndex >= cards.length) return;
+    if (fromIndex === toIndex) return;
+    const [moved] = cards.splice(fromIndex, 1);
+    cards.splice(toIndex, 0, moved);
+    set({
+      state: {
+        ...currentState,
+        hand: { ...currentState.hand, cards },
+      },
+    });
+  },
+
   finalizeHand: () => {
     const { state: currentState } = get();
     if (currentState.hand.cards.length === 0) return;
 
-    const result = scoreHand(currentState.hand.cards, currentState.relics);
+    const result = scoreHand(currentState.hand.cards, currentState.relics, currentState.encounter?.modifiers);
 
     set({
       state: {
@@ -539,11 +570,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return null;
     }
 
-    return scoreHand(currentState.hand.cards, currentState.relics);
+    return scoreHand(currentState.hand.cards, currentState.relics, currentState.encounter?.modifiers);
   },
 
   getResolvedHand: () => {
     const { state: currentState } = get();
     return currentState.hand.cards.map(resolveCard);
   },
-}));
+})});

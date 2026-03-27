@@ -1,5 +1,6 @@
 import type { Encounter, BossStipulation } from '../types/game.ts';
 import { SeededRNG } from '../utils/random.ts';
+import { ENCOUNTER_THEMES } from '../data/encounterThemes.ts';
 
 const BOSS_STIPULATIONS: BossStipulation[] = [
   {
@@ -81,19 +82,22 @@ export function generateEncounterForNode(
   act: number,
   rng: SeededRNG,
 ): Encounter {
-  const baseThreshold = 50 + act * 30 + encounterIndex * 15;
+  const baseThreshold = 100 + act * 30 + encounterIndex * 15;
   const variance = rng.nextInt(-5, 10);
   const threshold = baseThreshold + variance;
 
-  const name = ENCOUNTER_NAMES[rng.nextInt(0, ENCOUNTER_NAMES.length - 1)];
+  // Pick a thematic encounter
+  const theme = ENCOUNTER_THEMES[rng.nextInt(0, ENCOUNTER_THEMES.length - 1)];
 
   return {
     id: `encounter_${act}_${encounterIndex}`,
-    name,
+    name: theme.name,
     scoreThreshold: threshold,
-    riverSize: 0, // river starts empty; cards are discarded into it
+    riverSize: 0,
     isBoss: false,
     rewardTier: 'normal',
+    flavor: theme.flavor,
+    modifiers: theme.modifiers,
   };
 }
 

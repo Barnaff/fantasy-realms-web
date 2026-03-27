@@ -61,7 +61,7 @@ export interface CardProps {
 function TagBadge({ tag }: { tag: Tag }) {
   return (
     <span
-      className="inline-block rounded-sm font-bold text-white leading-none px-1 py-0.5 text-[9px]"
+      className="inline-block rounded-sm font-bold text-white leading-none px-0.5 py-px text-[6px]"
       style={{ backgroundColor: TAG_COLORS[tag] }}
     >
       {tag}
@@ -100,14 +100,10 @@ export function Card({
       <div
         className={clsx(
           'card-face relative flex flex-col rounded-lg select-none overflow-hidden',
-          'transition-shadow duration-200',
           selected && 'shadow-[0_0_12px_rgba(212,164,55,0.5)]',
-          !selected && 'shadow-md',
+          !selected && !glowing && 'shadow-md',
           blanked && 'grayscale',
           dimmed && !selected && 'opacity-50 saturate-50',
-          glowing && !dimmed && glowColor === 'gold' && 'shadow-[0_0_8px_rgba(212,164,55,0.35)]',
-          glowing && !dimmed && glowColor === 'green' && 'shadow-[0_0_10px_rgba(34,197,94,0.5)] ring-2 ring-green-400/60',
-          glowing && !dimmed && glowColor === 'red' && 'shadow-[0_0_10px_rgba(239,68,68,0.5)] ring-2 ring-red-400/60',
           onClick && !dimmed && !blanked && 'cursor-pointer',
         )}
         data-inspect-id={card.instanceId}
@@ -118,6 +114,13 @@ export function Card({
           borderWidth: 2,
           borderStyle: 'solid',
           borderColor: selected ? '#d4a437' : borderColor,
+          outline: glowing && !dimmed
+            ? `2px solid ${glowColor === 'green' ? 'rgba(34,197,94,0.6)' : glowColor === 'red' ? 'rgba(239,68,68,0.6)' : 'rgba(212,164,55,0.4)'}`
+            : 'none',
+          outlineOffset: '1px',
+          boxShadow: glowing && !dimmed
+            ? (glowColor === 'green' ? '0 0 10px rgba(34,197,94,0.5)' : glowColor === 'red' ? '0 0 10px rgba(239,68,68,0.5)' : undefined)
+            : undefined,
           background: 'linear-gradient(170deg, #fdf8ef 0%, #f3e8cc 100%)',
           touchAction: 'manipulation',
           transformOrigin: 'top left',
@@ -133,15 +136,15 @@ export function Card({
         }}
         {...handlers}
       >
-        {/* Tags row */}
-        <div className="flex flex-wrap gap-px mb-px">
+        {/* Tags row — single line, no wrap */}
+        <div className="flex gap-px mb-px ml-[22px] overflow-hidden">
           {card.tags.map(tag => (
             <TagBadge key={tag} tag={tag} />
           ))}
         </div>
 
-        {/* Card name */}
-        <h3 className="font-display font-bold text-ink leading-tight text-[10px]">
+        {/* Card name — single line, truncated */}
+        <h3 className="font-display font-bold text-ink leading-tight text-[8px] ml-[22px] truncate">
           {card.name}
         </h3>
 
@@ -157,31 +160,32 @@ export function Card({
 
         {/* Base value badge */}
         <div
-          className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center font-display font-bold text-white text-[10px] shadow-sm"
+          className="absolute top-1 left-1 w-6 h-6 rounded-full flex items-center justify-center font-display font-bold text-white text-[10px] shadow-sm"
           style={{ backgroundColor: borderColor }}
         >
           {card.baseValue}
         </div>
 
-        {/* Text area — fills remaining space, clips overflow */}
-        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-          {/* Scoring hint */}
-          {card.scoringEffects.length > 0 && (
-            <div className={clsx(
-              'text-[7px] leading-tight line-clamp-2',
-              ['blankTag', 'blankIfTagAbsent', 'blankSpecificCard', 'blankIfTagPresent'].includes(card.scoringEffects[0].effectId)
-                ? 'text-tag-fire font-bold'
-                : 'text-ink-muted',
-            )}>
-              {formatCardText(card.scoringEffects[0].description)}
-            </div>
-          )}
+        {/* Text area — fills remaining space, scrollable */}
+        <div className="flex-1 overflow-y-auto flex flex-col min-h-0 text-[6px] leading-tight">
+          {/* All scoring effects */}
+          {card.scoringEffects.map((effect, i) => {
+            const isBlank = ['blankTag', 'blankIfTagAbsent', 'blankSpecificCard', 'blankIfTagPresent'].includes(effect.effectId);
+            const isPenalty = effect.effectId.startsWith('penalty');
+            return (
+              <div key={i} className={clsx(
+                isBlank ? 'text-tag-fire font-bold' : isPenalty ? 'text-tag-fire' : 'text-ink-muted',
+              )}>
+                {formatCardText(effect.description)}
+              </div>
+            );
+          })}
 
           {/* Discard indicator */}
           {card.discardEffect && (
-            <div className="mt-auto pt-px border-t border-parchment-300/50 text-[6px]">
+            <div className="mt-auto pt-px border-t border-parchment-300/50">
               <span className="text-tag-fire font-bold">Disc: </span>
-              <span className="text-ink-light line-clamp-1">{formatCardText(card.discardEffect.description)}</span>
+              <span className="text-ink-light">{formatCardText(card.discardEffect.description)}</span>
             </div>
           )}
         </div>
@@ -242,8 +246,8 @@ export function CardPreview({ card }: { card: ResolvedCard }) {
         boxShadow: `0 8px 32px rgba(0,0,0,0.25), 0 0 20px ${borderColor}30`,
       }}
     >
-      {/* Tags */}
-      <div className="flex flex-wrap gap-1 mb-1">
+      {/* Tags — offset right to avoid score circle */}
+      <div className="flex flex-wrap gap-1 mb-1 ml-12 sm:ml-14">
         {card.tags.map(tag => (
           <span
             key={tag}
@@ -271,7 +275,7 @@ export function CardPreview({ card }: { card: ResolvedCard }) {
 
       {/* Base value */}
       <div
-        className="absolute top-2.5 right-2.5 w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-display font-bold text-white text-base sm:text-lg"
+        className="absolute top-2.5 left-2.5 w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-display font-bold text-white text-base sm:text-lg"
         style={{
           backgroundColor: borderColor,
           boxShadow: `0 2px 8px ${borderColor}60`,

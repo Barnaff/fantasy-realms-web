@@ -43,6 +43,11 @@ export interface ScoreResult {
   relicBonuses: { relicName: string; value: number }[];
 }
 
+export interface EncounterModifier {
+  tag: Tag;
+  value: number; // positive = bonus, negative = penalty
+}
+
 export interface Encounter {
   id: string;
   name: string;
@@ -52,6 +57,7 @@ export interface Encounter {
   bossStipulation?: BossStipulation;
   rewardTier: 'normal' | 'elite' | 'boss';
   flavor?: string;
+  modifiers?: EncounterModifier[];
 }
 
 export interface BossStipulation {

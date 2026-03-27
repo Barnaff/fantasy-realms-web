@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.4.0 — 2026-03-27
+
+### Balance Overhaul
+- Multi-tag cards reduced from 21 (28%) to 5 (6%) — now rare and impactful
+- Card power curve rebalanced: low cards (5-12) have mild/no penalties, high cards (26-40) have severe penalties or blanking
+- 17 thematic penalties added to bonus-only cards (fire vs flood, nature vs war, leader vs undead tensions)
+- 5 new blanking effects: Enchanted Armor, Crown of Command, Frozen Lake, Mountain Pass, Battle Hymn
+- First level target score raised to 130 (from ~80) for meaningful challenge
+- Encounter thresholds scaled: Act 1 (130-175), Act 2 (160-205), Act 3 (190-235)
+
+### New Features
+- 20 thematic encounter modifiers with tag bonuses/penalties (e.g., "The Black Swamps": +3 Beast, -4 Fire)
+- Encounter modifiers displayed as colored pill badges below level header
+- Deck draw hint: bouncing "Tap to draw!" tooltip after 2 seconds on first turn
+- Drag-to-reorder cards in hand with live preview (other cards shift to show drop position)
+- Removed click-to-select discard flow — discard is now drag-only (cleaner UX)
+
+### Improvements
+- All scoring effects shown on compact cards (no more truncated text with "...")
+- Penalty effects colored red, blank effects bold red with icon
+- Level modifier pills: green for bonuses, red for penalties
+- Encounter flavor text shown below modifiers
+- Hand cards stay visible during drag-reorder (fixed framer-motion conflicts)
+- Hover disabled on all cards while any card is being dragged
+
+### Fixes
+- Cards no longer duplicate in hand after drag-discard
+- Hover/inspect no longer interrupts drag gestures
+- Removed dead click-selection code and unused state
+
 ## 0.3.0 — 2026-03-26
 
 ### New Features
