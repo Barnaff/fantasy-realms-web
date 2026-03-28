@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, FONTS } from '../../config.ts';
 import { GameManager } from '../systems/GameManager.ts';
 import { EVENT_DEFS } from '../../data/events.ts';
+import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 
 export class EventScene extends Phaser.Scene {
   constructor() {
@@ -38,48 +39,37 @@ export class EventScene extends Phaser.Scene {
     // Choice buttons
     const choices = eventDef?.choices ?? [];
     const btnW = Math.min(width * 0.7, 280);
-    const btnH = 40;
     const startY = height * 0.5;
 
     choices.forEach((choice, i) => {
       const btnY = startY + i * 56;
 
-      const btnBg = this.add.graphics();
-      btnBg.fillStyle(COLORS.tag.Wizard, 1);
-      btnBg.fillRoundedRect(cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 10);
-
-      this.add.text(cx, btnY, choice.label, {
-        fontFamily: FONTS.display,
+      new ButtonObject(this, cx, btnY, choice.label, {
+        width: btnW,
+        height: 40,
+        color: COLORS.tag.Wizard,
         fontSize: '15px',
-        color: '#ffffff',
-      }).setOrigin(0.5);
-
-      this.add.zone(cx, btnY, btnW, btnH).setInteractive({ useHandCursor: true })
-        .on('pointerdown', () => {
+        onClick: () => {
           gm.selectEventChoice(i);
           this.scene.start('MapScene');
-        });
+        },
+      });
     });
 
     // Fallback if no choices defined
     if (choices.length === 0) {
       const btnY = startY;
 
-      const btnBg = this.add.graphics();
-      btnBg.fillStyle(COLORS.parchment600, 1);
-      btnBg.fillRoundedRect(cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 10);
-
-      this.add.text(cx, btnY, 'Continue', {
-        fontFamily: FONTS.display,
+      new ButtonObject(this, cx, btnY, 'Continue', {
+        width: btnW,
+        height: 40,
+        color: COLORS.parchment600,
         fontSize: '15px',
-        color: '#ffffff',
-      }).setOrigin(0.5);
-
-      this.add.zone(cx, btnY, btnW, btnH).setInteractive({ useHandCursor: true })
-        .on('pointerdown', () => {
+        onClick: () => {
           gm.selectEventChoice(0);
           this.scene.start('MapScene');
-        });
+        },
+      });
     }
   }
 }

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS } from '../../config.ts';
+import { AuthManager } from '../systems/AuthManager.ts';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -47,13 +48,24 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    // Wait for fonts to be ready
-    if (document.fonts) {
-      document.fonts.ready.then(() => {
+    // Generate a soft glow particle texture
+    const gfx = this.make.graphics({ x: 0, y: 0 });
+    gfx.fillStyle(0xffffff, 1);
+    gfx.fillCircle(8, 8, 8);
+    gfx.generateTexture('particle-glow', 16, 16);
+    gfx.destroy();
+
+    const goToTitle = () => {
+      // Wait for fonts
+      if (document.fonts) {
+        document.fonts.ready.then(() => this.scene.start('TitleScene'));
+      } else {
         this.scene.start('TitleScene');
-      });
-    } else {
-      this.scene.start('TitleScene');
-    }
+      }
+    };
+
+    // Initialize auth + load saved state
+    const auth = AuthManager.getInstance();
+    auth.init().then(goToTitle).catch(() => goToTitle());
   }
 }

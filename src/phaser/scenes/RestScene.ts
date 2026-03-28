@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS } from '../../config.ts';
 import { GameManager } from '../systems/GameManager.ts';
+import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 
 export class RestScene extends Phaser.Scene {
   constructor() {
@@ -31,22 +32,16 @@ export class RestScene extends Phaser.Scene {
     // Continue button
     const btnY = height * 0.6;
     const btnW = Math.min(width * 0.6, 240);
-    const btnH = 46;
 
-    const btnBg = this.add.graphics();
-    btnBg.fillStyle(COLORS.tag.Beast, 1);
-    btnBg.fillRoundedRect(cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 12);
-
-    this.add.text(cx, btnY, 'Continue', {
-      fontFamily: FONTS.display,
+    new ButtonObject(this, cx, btnY, 'Continue', {
+      width: btnW,
+      height: 46,
+      color: COLORS.tag.Beast,
       fontSize: '18px',
-      color: '#ffffff',
-    }).setOrigin(0.5);
-
-    this.add.zone(cx, btnY, btnW, btnH).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => {
+      onClick: () => {
         gm.leaveRest();
         this.scene.start('MapScene');
-      });
+      },
+    });
   }
 }

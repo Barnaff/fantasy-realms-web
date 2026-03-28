@@ -9,7 +9,9 @@ export class DeckPileObject extends Phaser.GameObjects.Container {
   private countText: Phaser.GameObjects.Text;
   private glowGraphics: Phaser.GameObjects.Graphics;
   private glowTween: Phaser.Tweens.Tween | null = null;
+  private particles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private _canDraw = false;
+  private deckScale: number;
 
   constructor(
     scene: Phaser.Scene,
@@ -65,6 +67,7 @@ export class DeckPileObject extends Phaser.GameObjects.Container {
     }).setOrigin(0.5);
     this.add(this.countText);
 
+    this.deckScale = scale;
     this.setScale(scale);
     scene.add.existing(this);
   }
@@ -100,12 +103,44 @@ export class DeckPileObject extends Phaser.GameObjects.Container {
         repeat: -1,
         ease: 'Sine.easeInOut',
       });
+
+      // Magical particles around the glow outline
+      if (!this.particles && this.scene.textures.exists('particle-glow')) {
+        const s = this.deckScale;
+        const pw = CARD.WIDTH * s;
+        const ph = CARD.HEIGHT * s;
+        this.particles = this.scene.add.particles(this.x, this.y, 'particle-glow', {
+          speed: { min: 8, max: 22 },
+          scale: { start: 0.18, end: 0 },
+          alpha: { start: 0.8, end: 0 },
+          lifespan: { min: 500, max: 1100 },
+          frequency: 60,
+          tint: 0x22c55e,
+          blendMode: 'ADD',
+          emitZone: {
+            type: 'edge',
+            source: new Phaser.Geom.Rectangle(
+              -pw / 2 - 4,
+              -ph / 2 - 4,
+              pw + 8,
+              ph + 8,
+            ),
+            quantity: 28,
+          },
+        });
+        this.particles.setDepth(this.depth + 1);
+      }
     } else {
       if (this.glowTween) {
         this.glowTween.stop();
         this.glowTween = null;
       }
       this.glowGraphics.setVisible(false);
+
+      if (this.particles) {
+        this.particles.destroy();
+        this.particles = null;
+      }
     }
   }
 }

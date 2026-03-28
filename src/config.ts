@@ -33,8 +33,8 @@ export const COLORS = {
 } as const;
 
 export const CARD = {
-  WIDTH: 100,
-  HEIGHT: 140,
+  WIDTH: 120,
+  HEIGHT: 168,
   BORDER_RADIUS: 8,
   BORDER_WIDTH: 2,
 } as const;

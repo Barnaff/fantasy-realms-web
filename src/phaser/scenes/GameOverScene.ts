@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS } from '../../config.ts';
 import { GameManager } from '../systems/GameManager.ts';
+import { AuthManager } from '../systems/AuthManager.ts';
+import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -11,6 +13,7 @@ export class GameOverScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const cx = width / 2;
     const gm = GameManager.getInstance();
+    const auth = AuthManager.getInstance();
 
     this.cameras.main.setBackgroundColor(COLORS.parchment100);
 
@@ -18,6 +21,15 @@ export class GameOverScene extends Phaser.Scene {
     const lastScore = gm.state.lastScoreResult?.totalScore ?? 0;
     const threshold = gm.state.encounter?.scoreThreshold ?? 0;
     const passed = lastScore >= threshold;
+
+    // Record stats and clear save
+    auth.recordRunEnd({
+      encountersCleared: run?.encountersCleared ?? 0,
+      bestScoreThisRun: run?.totalScore ?? 0,
+      goldEarned: run?.gold ?? 0,
+      won: passed,
+    });
+    auth.clearSave();
 
     // Determine victory: passed the last encounter and no more encounters
     const isVictory = passed && (run?.encountersCleared ?? 0) > 0;
@@ -49,22 +61,16 @@ export class GameOverScene extends Phaser.Scene {
     // Play Again button
     const btnY = height * 0.7;
     const btnW = Math.min(width * 0.6, 260);
-    const btnH = 46;
 
-    const btnBg = this.add.graphics();
-    btnBg.fillStyle(COLORS.tag.Leader, 1);
-    btnBg.fillRoundedRect(cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 12);
-
-    this.add.text(cx, btnY, 'Play Again', {
-      fontFamily: FONTS.display,
+    new ButtonObject(this, cx, btnY, 'Play Again', {
+      width: btnW,
+      height: 46,
+      color: COLORS.tag.Leader,
       fontSize: '18px',
-      color: '#ffffff',
-    }).setOrigin(0.5);
-
-    this.add.zone(cx, btnY, btnW, btnH).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => {
+      onClick: () => {
         gm.resetToTitle();
         this.scene.start('TitleScene');
-      });
+      },
+    });
   }
 }

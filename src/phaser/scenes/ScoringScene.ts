@@ -1,6 +1,10 @@
 import Phaser from 'phaser';
-import { COLORS, FONTS } from '../../config.ts';
+import { COLORS, FONTS, CARD } from '../../config.ts';
 import { GameManager } from '../systems/GameManager.ts';
+import { CardFactory } from '../systems/CardFactory.ts';
+import { resolveCard } from '../../engine/scoring.ts';
+import { ButtonObject } from '../gameobjects/ButtonObject.ts';
+import type { ScoreBreakdownEntry } from '../../types/game.ts';
 
 export class ScoringScene extends Phaser.Scene {
   constructor() {
@@ -14,61 +18,232 @@ export class ScoringScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(COLORS.parchment100);
 
-    const score = gm.state.lastScoreResult?.totalScore ?? 0;
+    const result = gm.state.lastScoreResult;
+    const score = result?.totalScore ?? 0;
     const threshold = gm.state.encounter?.scoreThreshold ?? 0;
     const passed = score >= threshold;
+    const breakdown = result?.breakdown ?? [];
+    const handCards = gm.state.hand.cards;
 
-    this.add.text(cx, height * 0.18, 'Score', {
+    // ── Fixed header ──
+    const headerBg = this.add.graphics().setDepth(9);
+    headerBg.fillStyle(COLORS.parchment100, 1);
+    headerBg.fillRect(0, 0, width, 52);
+
+    this.add.text(14, 10, passed ? 'Victory!' : 'Defeated', {
+      fontFamily: FONTS.display,
+      fontSize: '20px',
+      color: passed ? '#1a8a3e' : '#a82020',
+      resolution: 2,
+    }).setDepth(10);
+
+    this.add.text(width - 14, 8, `${score}`, {
       fontFamily: FONTS.display,
       fontSize: '28px',
-      color: '#2c1810',
-    }).setOrigin(0.5);
+      color: passed ? '#1a8a3e' : '#a82020',
+      resolution: 2,
+    }).setOrigin(1, 0).setDepth(10);
 
-    this.add.text(cx, height * 0.32, `${score}`, {
-      fontFamily: FONTS.display,
-      fontSize: '48px',
-      color: passed ? '#22c55e' : '#c4433a',
-    }).setOrigin(0.5);
-
-    this.add.text(cx, height * 0.44, `Threshold: ${threshold}`, {
+    this.add.text(width - 14, 38, `target ${threshold}`, {
       fontFamily: FONTS.body,
-      fontSize: '16px',
-      color: '#6b5c4e',
-    }).setOrigin(0.5);
+      fontSize: '10px',
+      color: '#5a4a3a',
+      resolution: 2,
+    }).setOrigin(1, 0).setDepth(10);
 
-    this.add.text(cx, height * 0.52, passed ? 'PASSED' : 'FAILED', {
-      fontFamily: FONTS.display,
-      fontSize: '22px',
-      color: passed ? '#22c55e' : '#c4433a',
-    }).setOrigin(0.5);
+    const divider = this.add.graphics().setDepth(10);
+    divider.lineStyle(1, COLORS.parchment400, 0.5);
+    divider.lineBetween(10, 50, width - 10, 50);
 
-    // Continue button
-    const btnY = height * 0.7;
-    const btnW = Math.min(width * 0.6, 240);
-    const btnH = 46;
+    // ── Scrollable content ──
+    const scrollY = 54;
+    const scrollH = height - scrollY - 58;
+    const content = this.add.container(0, scrollY);
+    let curY = 8;
 
-    const btnBg = this.add.graphics();
-    btnBg.fillStyle(passed ? COLORS.tag.Beast : COLORS.tag.Fire, 1);
-    btnBg.fillRoundedRect(cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 12);
+    // ── Card columns: each card with its breakdown below ──
+    const cardCount = handCards.length;
+    const gap = 8;
+    // Calculate card scale to fit ~3.5 cards visible, allowing horizontal scroll
+    const cardScale = Math.min(0.85, (width - 20) / (3.2 * CARD.WIDTH));
+    const cardW = CARD.WIDTH * cardScale;
+    const cardH = CARD.HEIGHT * cardScale;
+    const colW = cardW + gap;
+    const totalW = cardCount * colW - gap;
+    const startX = Math.max(cx - totalW / 2, gap) + cardW / 2;
 
-    this.add.text(cx, btnY, 'Continue', {
-      fontFamily: FONTS.display,
-      fontSize: '18px',
-      color: '#ffffff',
-    }).setOrigin(0.5);
+    for (let i = 0; i < cardCount; i++) {
+      const resolved = resolveCard(handCards[i]);
+      const entry = breakdown[i];
+      const colX = startX + i * colW;
+      let colY = curY;
 
-    this.add.zone(cx, btnY, btnW, btnH).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => {
+      // Card
+      const card = CardFactory.create(this, resolved, colX, colY + cardH / 2, cardScale);
+      this.children.remove(card);
+      content.add(card);
+      if (entry?.blanked) card.setBlanked(true);
+
+      colY += cardH + 6;
+
+      // Score value under card
+      if (entry) {
+        const fColor = entry.blanked ? '#999' : (entry.finalValue < entry.baseValue ? '#a82020' : '#1a8a3e');
+        const scoreVal = this.add.text(colX, colY, `${entry.finalValue}`, {
+          fontFamily: FONTS.display,
+          fontSize: '14px',
+          color: fColor,
+          fontStyle: 'bold',
+          resolution: 2,
+        }).setOrigin(0.5, 0);
+        content.add(scoreVal);
+        colY += 18;
+
+        // Compact breakdown lines
+        const lineW = cardW - 4;
+
+        // Base
+        const baseT = this.add.text(colX, colY, `Base: ${entry.baseValue}`, {
+          fontFamily: FONTS.body, fontSize: '7px', color: '#5a4a3a', resolution: 2,
+        }).setOrigin(0.5, 0);
+        content.add(baseT);
+        colY += 11;
+
+        // Bonuses
+        for (const b of entry.bonuses) {
+          const desc = b.description.length > 28 ? b.description.slice(0, 27) + '…' : b.description;
+          const t = this.add.text(colX, colY, `+${b.value} ${desc}`, {
+            fontFamily: FONTS.body, fontSize: '7px', color: '#157a30',
+            wordWrap: { width: cardW + 10 }, resolution: 2,
+          }).setOrigin(0.5, 0);
+          content.add(t);
+          colY += t.height + 1;
+        }
+
+        // Penalties
+        for (const p of entry.penalties) {
+          const desc = p.description.length > 28 ? p.description.slice(0, 27) + '…' : p.description;
+          const t = this.add.text(colX, colY, `${p.value} ${desc}`, {
+            fontFamily: FONTS.body, fontSize: '7px', color: '#a82020',
+            wordWrap: { width: cardW + 10 }, resolution: 2,
+          }).setOrigin(0.5, 0);
+          content.add(t);
+          colY += t.height + 1;
+        }
+
+        // Blanked
+        if (entry.blanked) {
+          const bl = this.add.text(colX, colY, '✕ BLANKED', {
+            fontFamily: FONTS.display, fontSize: '8px', color: '#a82020',
+            fontStyle: 'bold', resolution: 2,
+          }).setOrigin(0.5, 0);
+          content.add(bl);
+          colY += 13;
+        }
+      }
+    }
+
+    // Content height = cards + breakdown
+    const maxColH = curY + cardH + 120; // estimate max height
+
+    // ── Relic bonuses ──
+    let bottomY = curY + cardH + 80;
+    if (result && result.relicBonuses.length > 0) {
+      for (const rb of result.relicBonuses) {
+        const t = this.add.text(14, bottomY, `⚜ ${rb.relicName}: +${rb.value}`, {
+          fontFamily: FONTS.body, fontSize: '10px', color: '#157a30', fontStyle: 'bold', resolution: 2,
+        });
+        content.add(t);
+        bottomY += 16;
+      }
+    }
+
+    // ── Total — large and centered ──
+    bottomY += 8;
+    const totalBg = this.add.graphics();
+    totalBg.fillStyle(passed ? 0x1a8a3e : 0xa82020, 0.08);
+    totalBg.fillRoundedRect(cx - 100, bottomY, 200, 50, 10);
+    content.add(totalBg);
+
+    const totalLbl = this.add.text(cx, bottomY + 6, 'TOTAL SCORE', {
+      fontFamily: FONTS.display, fontSize: '10px', color: '#5a4a3a', resolution: 2,
+    }).setOrigin(0.5, 0);
+    content.add(totalLbl);
+
+    const totalVal = this.add.text(cx, bottomY + 20, `${score}`, {
+      fontFamily: FONTS.display, fontSize: '24px', color: passed ? '#1a8a3e' : '#a82020', fontStyle: 'bold', resolution: 2,
+    }).setOrigin(0.5, 0);
+    content.add(totalVal);
+
+    const targetLbl = this.add.text(cx, bottomY + 46, `target: ${threshold}`, {
+      fontFamily: FONTS.body, fontSize: '9px', color: '#6b5c4e', resolution: 2,
+    }).setOrigin(0.5, 0);
+    content.add(targetLbl);
+    bottomY += 64;
+
+    // ── Horizontal scroll for cards, vertical scroll for overflow ──
+    const contentTotalH = bottomY;
+    const contentTotalW = totalW + gap * 2;
+
+    // Mask
+    const maskGfx = this.make.graphics({ x: 0, y: 0 });
+    maskGfx.fillStyle(0xffffff);
+    maskGfx.fillRect(0, scrollY, width, scrollH);
+    content.setMask(maskGfx.createGeometryMask());
+
+    // Scroll handling — horizontal drag for cards, vertical for overflow
+    let dragging = false;
+    let dragSX = 0, dragSY = 0;
+    let contentSX = 0, contentSY = 0;
+
+    const minX = Math.min(0, -(contentTotalW - width + 20));
+    const maxX = 0;
+    const minY = Math.min(scrollY, scrollY - (contentTotalH - scrollH));
+    const maxY = scrollY;
+
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (p.y >= scrollY && p.y <= scrollY + scrollH) {
+        dragging = true;
+        dragSX = p.x; dragSY = p.y;
+        contentSX = content.x; contentSY = content.y;
+      }
+    });
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (!dragging) return;
+      const dx = p.x - dragSX;
+      const dy = p.y - dragSY;
+      // Determine scroll direction by which axis moved more
+      if (Math.abs(dx) > Math.abs(dy)) {
+        content.x = Phaser.Math.Clamp(contentSX + dx, minX, maxX);
+      } else {
+        content.y = Phaser.Math.Clamp(contentSY + dy, minY, maxY);
+      }
+    });
+    this.input.on('pointerup', () => { dragging = false; });
+    this.input.on('wheel', (_p: unknown, _g: unknown[], dx: number, dy: number) => {
+      if (Math.abs(dx) > Math.abs(dy)) {
+        content.x = Phaser.Math.Clamp(content.x - dx * 0.5, minX, maxX);
+      } else {
+        content.y = Phaser.Math.Clamp(content.y - dy * 0.5, minY, maxY);
+      }
+    });
+
+    // ── Continue button ──
+    const btnY = height - 30;
+    const btnW = Math.min(width * 0.55, 220);
+
+    const continueBtn = new ButtonObject(this, cx, btnY, 'Continue', {
+      width: btnW,
+      height: 40,
+      color: passed ? 0x1a8a3e : 0xa82020,
+      fontSize: '15px',
+      onClick: () => {
         gm.acknowledgeScore();
         const phase = gm.state.phase;
-        if (phase === 'post_encounter') {
-          this.scene.start('PostEncounterScene');
-        } else if (phase === 'game_over') {
-          this.scene.start('GameOverScene');
-        } else {
-          // Victory or unexpected — treat as game over with win
-          this.scene.start('GameOverScene');
-        }
-      });
+        if (phase === 'post_encounter') this.scene.start('PostEncounterScene');
+        else this.scene.start('GameOverScene');
+      },
+    });
+    continueBtn.setDepth(10);
   }
 }

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS } from '../../config.ts';
 import { GameManager } from '../systems/GameManager.ts';
+import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 
 export class MerchantScene extends Phaser.Scene {
   constructor() {
@@ -35,22 +36,16 @@ export class MerchantScene extends Phaser.Scene {
     // Leave button
     const btnY = height * 0.65;
     const btnW = Math.min(width * 0.6, 240);
-    const btnH = 46;
 
-    const btnBg = this.add.graphics();
-    btnBg.fillStyle(COLORS.parchment600, 1);
-    btnBg.fillRoundedRect(cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 12);
-
-    this.add.text(cx, btnY, 'Leave', {
-      fontFamily: FONTS.display,
+    new ButtonObject(this, cx, btnY, 'Leave', {
+      width: btnW,
+      height: 46,
+      color: COLORS.parchment600,
       fontSize: '18px',
-      color: '#ffffff',
-    }).setOrigin(0.5);
-
-    this.add.zone(cx, btnY, btnW, btnH).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => {
+      onClick: () => {
         gm.leaveMerchant();
         this.scene.start('MapScene');
-      });
+      },
+    });
   }
 }

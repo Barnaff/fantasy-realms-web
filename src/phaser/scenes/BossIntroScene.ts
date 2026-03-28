@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS } from '../../config.ts';
 import { GameManager } from '../systems/GameManager.ts';
+import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 
 export class BossIntroScene extends Phaser.Scene {
   constructor() {
@@ -35,22 +36,16 @@ export class BossIntroScene extends Phaser.Scene {
     // Begin Battle button
     const btnY = height * 0.6;
     const btnW = Math.min(width * 0.6, 260);
-    const btnH = 46;
 
-    const btnBg = this.add.graphics();
-    btnBg.fillStyle(COLORS.tag.Fire, 1);
-    btnBg.fillRoundedRect(cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 12);
-
-    this.add.text(cx, btnY, 'Begin Battle', {
-      fontFamily: FONTS.display,
+    new ButtonObject(this, cx, btnY, 'Begin Battle', {
+      width: btnW,
+      height: 46,
+      color: COLORS.tag.Fire,
       fontSize: '18px',
-      color: '#ffffff',
-    }).setOrigin(0.5);
-
-    this.add.zone(cx, btnY, btnW, btnH).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => {
+      onClick: () => {
         gm.state = { ...gm.state, phase: 'player_turn' };
         this.scene.start('EncounterScene');
-      });
+      },
+    });
   }
 }

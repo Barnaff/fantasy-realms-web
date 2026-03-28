@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.6.0 — 2026-03-28
+
+### New Features
+- Tutorial overlay with 7 slides: welcome, drawing, discarding, synergies, blanking, modifiers, winning
+- "Don't show again" checkbox persists to localStorage
+- Tutorial appears on first encounter of a run
+- River starts with 1 face-up card for immediate strategic choice
+- Green glow on hand cards during discard phase (matches deck/river draw glow)
+- Card relationship arrows between hovered card and river cards
+- Visual blanked overlay on blanked cards (gray tint + "BLANKED" label)
+- Map improvements: gold trail for completed path, "YOU" marker on current node, checkmarks on visited nodes
+- 20 thematic encounter modifiers displayed as colored pills (green bonus, red penalty)
+
+### Improvements
+- Buttons completely refactored for reliability: transparent Rectangle hit target, pointerup firing, pressed-state tracking
+- All scenes use ButtonObject with 14px padding for easy mobile tapping
+- Tags moved to left side of card (visible in fan layout where right side overlaps)
+- Score circle moved tighter to card corner
+- River card hover preview matches hand card size (scales to hand × 1.5)
+- Reward cards bigger with center-pivot hover scaling (1.5×)
+- Card text formatting: black text, colored tag references, bold keywords
+- Higher resolution text rendering throughout (resolution: 2)
+- Deck pile interactive area covers full card (not just label)
+
+### Fixes
+- Buttons no longer fail to fire when scene-level pointerdown handlers are active
+- Cards interactive across full area (not just art image)
+- Hover preview in river no longer gets stuck after interactions
+- Encounter modifiers applied to scoring engine
+
 ## 0.5.0 — 2026-03-27
 
 ### Major: Phaser 3 Rewrite

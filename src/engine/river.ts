@@ -10,17 +10,24 @@ export function createRiver(deck: CardInstance[]): River {
 }
 
 /**
- * Deal the initial hand from the deck (top N cards).
- * Returns the updated river (with reduced deck) and the dealt hand.
+ * Deal the initial hand from the deck (top N cards),
+ * then place 2 cards face-up in the river.
+ * Returns the updated river and the dealt hand.
  */
 export function dealInitialHand(
   river: River,
   handSize: number,
+  initialRiverCards: number = 1,
 ): { river: River; hand: HandState } {
   const dealt = river.deck.slice(0, handSize);
-  const remaining = river.deck.slice(handSize);
+  const afterHand = river.deck.slice(handSize);
+
+  // Place initial cards face-up in the river
+  const riverCards = afterHand.slice(0, initialRiverCards);
+  const remaining = afterHand.slice(initialRiverCards);
+
   return {
-    river: { ...river, deck: remaining },
+    river: { ...river, cards: riverCards, deck: remaining },
     hand: { cards: dealt, maxSize: handSize },
   };
 }

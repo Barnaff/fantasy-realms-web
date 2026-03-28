@@ -92,18 +92,18 @@ export class LayoutHelper {
     const isNarrow = width < 500;
     const isShort = height < 700;
 
-    let hand = 1.0;
-    let river = 0.65;
+    let hand = 1.2;
+    let river = 0.85;
 
     if (isNarrow || isShort) {
-      hand = 0.85;
-      river = 0.55;
+      hand = 1.0;
+      river = 0.7;
     }
 
     // Extra small screens
     if (width < 380) {
-      hand = 0.7;
-      river = 0.5;
+      hand = 0.85;
+      river = 0.6;
     }
 
     return { hand, river };
