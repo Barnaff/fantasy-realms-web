@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.9.1 — 2026-03-28
+
+### New Features
+- Keyword tooltips: "BLANK" and "BLANKED" definitions shown next to hovered cards
+- Referenced card previews: mini card previews shown next to hovered cards that reference other cards
+- Effect grouping: similar effects merged into one line (e.g., "Blanks all Fire, Army and Beast")
+- First-level hints: pulsing pill indicators for draw and discard phases (only on first encounter)
+- Neighboring hand cards push outward when hovering to reveal more of the enlarged preview
+
+### Improvements
+- Card names in effect text rendered bold in the referenced card's primary tag color
+- Tag name matching now case-insensitive with plural support (Beasts, Armies, Flames, etc.)
+- Card text sizes reduced for better fit (name 10px, effects 8px)
+- Dark shadow halo on hovered cards in encounter, draft, and rewards screens
+- Draw hint positioned under deck/river area, left-aligned
+- Discard hint positioned above hand cards
+- Hints shown on page reload and after tutorial dismissal
+- Hints render behind cards (depth 5) so they don't cover previews
+- Level targets rebalanced: first encounter starts ~100, scaling gradually
+- Boss thresholds adjusted: Act 1 = 140, Act 2 = 200, Act 3 = 260
+
+### Fixes
+- River card shadow/tooltips cleared when drawing a card
+- Hover effects cleared on all state transitions (deck tap, river tap, hand changes)
+
 ## 0.9.0 — 2026-03-28
 
 ### Improvements
