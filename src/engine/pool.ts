@@ -87,21 +87,22 @@ export function calculateGoldReward(
   rewardTier: 'normal' | 'elite' | 'boss',
   relics: RelicInstance[],
 ): number {
+  // Base gold scales with difficulty tier (8-15 range for normal)
   let base: number;
   switch (rewardTier) {
     case 'boss':
-      base = 50;
+      base = 15;
       break;
     case 'elite':
-      base = 30;
+      base = 12;
       break;
     default:
-      base = 15;
+      base = 8;
   }
 
-  // Bonus for exceeding threshold
+  // +1 gold for every 5 points over the target score
   const excess = Math.max(0, score - threshold);
-  const bonus = Math.floor(excess / 10) * 5;
+  const bonus = Math.floor(excess / 5);
 
   let total = base + bonus;
 

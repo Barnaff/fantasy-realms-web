@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.0 — 2026-03-28
+
+### New Features
+- Clickable version tag on title screen with scrollable changelog overlay
+- Changelog read from CHANGELOG.md file at build time
+- Drag-scrollable changelog panel with wheel support
+
+### Improvements
+- Title screen buttons migrated to reliable ButtonObject
+- Version tag centered and larger (12px) with "v0.7.0 · Changelog" label
+- Gold reward rebalanced: 8-15 base (by tier) + 1 gold per 5 points over target
+- Tags and score circle repositioned for better visibility in card fan
+
+### Fixes
+- Changelog drag-scroll no longer closes the overlay (tap vs drag detection)
+- Scroll listeners properly cleaned up when changelog overlay closes
+- Scroll uses pointer delta tracking instead of unreliable velocity
+
 ## 0.6.0 — 2026-03-28
 
 ### New Features
