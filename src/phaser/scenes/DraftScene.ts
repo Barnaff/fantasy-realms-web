@@ -7,7 +7,7 @@ import { CardObject } from '../gameobjects/CardObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 import { LayoutHelper } from '../systems/LayoutHelper.ts';
 import { resolveCard } from '../../engine/scoring.ts';
-import { createKeywordTooltips } from '../utils/KeywordTooltips.ts';
+import { createKeywordTooltips, getPoolCardIds } from '../utils/KeywordTooltips.ts';
 
 export class DraftScene extends Phaser.Scene {
   private selectedId: string | null = null;
@@ -223,7 +223,7 @@ export class DraftScene extends Phaser.Scene {
     const resolved = found.card.getCard();
     if (resolved) {
       this.keywordTooltips = createKeywordTooltips(
-        this, resolved, found.x, found.y - 20, this.hoverScale,
+        this, resolved, found.x, found.y - 20, this.hoverScale, getPoolCardIds(),
       );
     }
   }

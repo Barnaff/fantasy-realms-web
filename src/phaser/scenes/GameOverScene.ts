@@ -31,6 +31,9 @@ export class GameOverScene extends Phaser.Scene {
     });
     auth.clearSave();
 
+    // Save analytics run record
+    gm.saveCompletedRun(passed);
+
     // Determine victory: passed the last encounter and no more encounters
     const isVictory = passed && (run?.encountersCleared ?? 0) > 0;
     const title = isVictory ? 'Victory' : 'Game Over';

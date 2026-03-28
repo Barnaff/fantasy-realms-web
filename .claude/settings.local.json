@@ -53,7 +53,15 @@
       "Bash(npm list:*)",
       "Bash(npx tsx:*)",
       "Bash(C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe node_modules/.bin/tsx scripts/seed-firestore.ts)",
-      "Bash(C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe node_modules/tsx/dist/cli.mjs scripts/seed-firestore.ts)"
+      "Bash(C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe node_modules/tsx/dist/cli.mjs scripts/seed-firestore.ts)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(curl -s \"https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSyArgIQ_Cd3nM60yYIuNJpGpA2xMgDemkEA\")",
+      "Bash(curl -s -X POST \"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=AIzaSyArgIQ_Cd3nM60yYIuNJpGpA2xMgDemkEA\" -H \"Content-Type: application/json\" -d '{\"\"\"\"contents\"\"\"\":[{\"\"\"\"parts\"\"\"\":[{\"\"\"\"text\"\"\"\":\"\"\"\"Generate a fantasy card game illustration of a phoenix, digital painting, vibrant colors, no text, centered subject\"\"\"\"}]}],\"\"\"\"generationConfig\"\"\"\":{\"\"\"\"responseModalities\"\"\"\":[\"\"\"\"TEXT\"\"\"\",\"\"\"\"IMAGE\"\"\"\"]}}')",
+      "Bash(where gsutil:*)",
+      "Bash(where gcloud:*)",
+      "Bash(npx firebase:*)",
+      "Bash(C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe \"C:/Users/kobic/AppData/Roaming/npm/node_modules/firebase-tools/lib/bin/firebase.js\" projects:list)",
+      "Bash(C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe \"C:/Users/kobic/AppData/Roaming/npm/node_modules/firebase-tools/lib/bin/firebase.js\" storage:cors set cors.json --project fantasy-realms-web)"
     ]
   }
 }

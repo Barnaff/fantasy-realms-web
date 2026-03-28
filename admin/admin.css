@@ -1,4 +1,5 @@
 /* Fantasy Realms Admin Dashboard */
+@keyframes spin { to { transform: rotate(360deg); } }
 *,
 *::before,
 *::after {

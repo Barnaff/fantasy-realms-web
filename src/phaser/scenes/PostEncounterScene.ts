@@ -6,7 +6,7 @@ import { CardObject } from '../gameobjects/CardObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 import { CARD_DEF_MAP } from '../../data/cards.ts';
 import { resolveCard } from '../../engine/scoring.ts';
-import { createKeywordTooltips } from '../utils/KeywordTooltips.ts';
+import { createKeywordTooltips, getPoolCardIds } from '../utils/KeywordTooltips.ts';
 import type { CardInstance } from '../../types/card.ts';
 
 export class PostEncounterScene extends Phaser.Scene {
@@ -56,11 +56,11 @@ export class PostEncounterScene extends Phaser.Scene {
       labelY += 28;
     }
 
-    // ── Card choices ──
-    const cardChoices = reward?.cardChoices ?? [];
+    // ── Card choice options (grouped) ──
+    const cardOptions = reward?.cardChoices ?? [];
 
-    if (cardChoices.length > 0) {
-      this.add.text(cx, labelY, 'Choose a card to add to your pool:', {
+    if (cardOptions.length > 0) {
+      this.add.text(cx, labelY, 'Choose a set of cards to add to your pool:', {
         fontFamily: FONTS.body,
         fontSize: '13px',
         color: '#6b5c4e',
@@ -68,50 +68,79 @@ export class PostEncounterScene extends Phaser.Scene {
       }).setOrigin(0.5);
       labelY += 22;
 
-      // Scale cards to fit width — bigger than before
-      const maxCardW = (width - 40) / cardChoices.length - 10;
-      this.baseScale = Math.min(1.3, maxCardW / CARD.WIDTH);
+      // Layout options vertically, cards horizontal within each option
+      const optionGap = 12;
+      this.baseScale = Math.min(0.9, (width - 80) / (3 * CARD.WIDTH + 20));
       const cardW = CARD.WIDTH * this.baseScale;
       const cardH = CARD.HEIGHT * this.baseScale;
-      const gap = 10;
-      const totalW = cardChoices.length * cardW + (cardChoices.length - 1) * gap;
-      const startX = cx - totalW / 2 + cardW / 2;
-      const cardsY = labelY + cardH / 2 + 8;
 
-      for (let i = 0; i < cardChoices.length; i++) {
-        const defId = cardChoices[i];
-        const def = CARD_DEF_MAP.get(defId);
-        if (!def) continue;
+      let optionY = labelY;
 
-        const instance: CardInstance = {
-          instanceId: `reward_${defId}_${i}`,
-          defId,
-          modifiers: [],
-        };
-        const resolved = resolveCard(instance);
-        const x = startX + i * (cardW + gap);
-        const card = CardFactory.create(this, resolved, x, cardsY, this.baseScale);
-        card.setDepth(i + 1);
-        card.setData('rewardIndex', i);
-        card.setData('defId', defId);
-        card.setData('originX', x);
-        card.setData('originY', cardsY);
-        card.setData('baseScale', this.baseScale);
+      for (let oi = 0; oi < cardOptions.length; oi++) {
+        const option = cardOptions[oi];
 
-        this.rewardCards.push(card);
+        // Option label
+        this.add.text(cx, optionY, option.label, {
+          fontFamily: FONTS.body,
+          fontSize: '10px',
+          color: '#9c8a5c',
+          resolution: 2,
+        }).setOrigin(0.5);
+        optionY += 14;
+
+        // Option border/bg
+        const optBg = this.add.graphics();
+        const optW = option.cards.length * (cardW + 8) + 16;
+        const optH = cardH + 16;
+        optBg.lineStyle(2, this.selectedIndex === oi ? COLORS.tag.Beast : COLORS.parchment300, 0.6);
+        optBg.strokeRoundedRect(cx - optW / 2, optionY - 4, optW, optH, 8);
+        optBg.fillStyle(COLORS.parchment200, 0.2);
+        optBg.fillRoundedRect(cx - optW / 2, optionY - 4, optW, optH, 8);
+        optBg.setData('optionIndex', oi);
+
+        // Cards in this option
+        const gap = 8;
+        const totalCardsW = option.cards.length * cardW + (option.cards.length - 1) * gap;
+        const startX = cx - totalCardsW / 2 + cardW / 2;
+        const cardsY = optionY + cardH / 2;
+
+        for (let ci = 0; ci < option.cards.length; ci++) {
+          const defId = option.cards[ci];
+          const def = CARD_DEF_MAP.get(defId);
+          if (!def) continue;
+
+          const instance: CardInstance = {
+            instanceId: `reward_${defId}_${oi}_${ci}`,
+            defId,
+            modifiers: [],
+          };
+          const resolved = resolveCard(instance);
+          const x = startX + ci * (cardW + gap);
+          const card = CardFactory.create(this, resolved, x, cardsY, this.baseScale);
+          card.setDepth(oi * 10 + ci + 1);
+          card.setData('rewardIndex', ci);
+          card.setData('optionIndex', oi);
+          card.setData('defId', defId);
+          card.setData('originX', x);
+          card.setData('originY', cardsY);
+          card.setData('baseScale', this.baseScale);
+
+          this.rewardCards.push(card);
+        }
+
+        // Clickable zone for the whole option
+        const zone = this.add.zone(cx, optionY + cardH / 2, optW, optH).setInteractive({ useHandCursor: true });
+        zone.on('pointerdown', () => {
+          this.selectOption(oi);
+        });
+
+        optionY += cardH + optionGap + 14;
       }
 
-      // Scene-level pointer for card selection + hover preview
+      // Scene-level pointer for hover preview
       this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
         const idx = this.getRewardCardAt(pointer.x, pointer.y);
         this.updateHover(idx);
-      });
-
-      this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-        const idx = this.getRewardCardAt(pointer.x, pointer.y);
-        if (idx >= 0) {
-          this.selectRewardCard(idx);
-        }
       });
     } else {
       this.add.text(cx, labelY + 20, 'No card rewards available', {
@@ -122,7 +151,7 @@ export class PostEncounterScene extends Phaser.Scene {
       }).setOrigin(0.5);
     }
 
-    // ── Select button (hidden until a card is selected) ──
+    // ── Select button (hidden until an option is selected) ──
     const selectBtnY = height * 0.85;
     const btnW = Math.min(width * 0.6, 240);
 
@@ -132,8 +161,8 @@ export class PostEncounterScene extends Phaser.Scene {
       color: COLORS.tag.Beast,
       fontSize: '16px',
       onClick: () => {
-        if (this.selectedIndex >= 0 && this.selectedIndex < cardChoices.length) {
-          gm.selectCardReward(cardChoices[this.selectedIndex]);
+        if (this.selectedIndex >= 0 && this.selectedIndex < cardOptions.length) {
+          gm.selectCardReward(this.selectedIndex);
           this.scene.start('MapScene');
         }
       },
@@ -151,6 +180,19 @@ export class PostEncounterScene extends Phaser.Scene {
         gm.skipCardReward();
         this.scene.start('MapScene');
       },
+    });
+
+    // ── View Deck button ──
+    this.add.text(12, height - 24, '📋 View Deck', {
+      fontFamily: FONTS.body,
+      fontSize: '12px',
+      color: '#6b5c4e',
+      resolution: 2,
+    });
+    const deckZone = this.add.zone(60, height - 18, 120, 24).setInteractive({ useHandCursor: true });
+    deckZone.on('pointerdown', () => {
+      this.scene.pause();
+      this.scene.launch('PoolViewerScene', { returnScene: 'PostEncounterScene' });
     });
   }
 
@@ -229,7 +271,7 @@ export class PostEncounterScene extends Phaser.Scene {
       const resolved = card.getCard();
       if (resolved) {
         this.keywordTooltips = createKeywordTooltips(
-          this, resolved, card.x, hoverY, hoverScale,
+          this, resolved, card.x, hoverY, hoverScale, getPoolCardIds(),
         );
       }
     }
@@ -246,48 +288,44 @@ export class PostEncounterScene extends Phaser.Scene {
     }
   }
 
-  private selectRewardCard(idx: number): void {
-    // Deselect previous
-    if (this.selectedIndex >= 0 && this.selectedIndex < this.rewardCards.length) {
-      const oldCard = this.rewardCards[this.selectedIndex];
-      const oy = oldCard.getData('originY') as number;
-      this.tweens.killTweensOf(oldCard);
-      oldCard.setGlowing(false);
-      this.tweens.add({
-        targets: oldCard,
-        y: oy,
-        scaleX: this.baseScale,
-        scaleY: this.baseScale,
-        duration: 150,
-        ease: 'Quad.easeOut',
-      });
-      oldCard.setDepth(this.selectedIndex + 1);
+  private selectOption(optionIndex: number): void {
+    // Deselect all cards from previous option
+    for (const card of this.rewardCards) {
+      const oi = card.getData('optionIndex') as number;
+      if (oi === this.selectedIndex) {
+        const oy = card.getData('originY') as number;
+        this.tweens.killTweensOf(card);
+        card.setGlowing(false);
+        this.tweens.add({
+          targets: card,
+          y: oy,
+          scaleX: this.baseScale,
+          scaleY: this.baseScale,
+          duration: 150,
+          ease: 'Quad.easeOut',
+        });
+      }
     }
 
-    // Toggle selection
-    if (this.selectedIndex === idx) {
+    // Toggle
+    if (this.selectedIndex === optionIndex) {
       this.selectedIndex = -1;
       this.selectBtn?.setVisible(false);
       return;
     }
 
-    this.selectedIndex = idx;
+    this.selectedIndex = optionIndex;
 
-    // Select new — enlarge from center and glow
-    if (idx >= 0 && idx < this.rewardCards.length) {
-      const card = this.rewardCards[idx];
-      const selectedScale = this.baseScale * 1.4;
-      this.tweens.killTweensOf(card);
-      card.setGlowing(true, 'gold');
-      this.tweens.add({
-        targets: card,
-        scaleX: selectedScale,
-        scaleY: selectedScale,
-        duration: 200,
-        ease: 'Back.easeOut',
-      });
-      card.setDepth(200);
-      this.selectBtn?.setVisible(true);
+    // Highlight all cards in the selected option
+    for (const card of this.rewardCards) {
+      const oi = card.getData('optionIndex') as number;
+      if (oi === optionIndex) {
+        this.tweens.killTweensOf(card);
+        card.setGlowing(true, 'gold');
+        card.setDepth(200);
+      }
     }
+
+    this.selectBtn?.setVisible(true);
   }
 }

@@ -4,6 +4,13 @@ import { CARD_DEF_MAP, CARD_DEFS } from '../../data/cards.ts';
 import type { ResolvedCard } from '../../types/card.ts';
 import { resolveCard } from '../../engine/scoring.ts';
 import { CardObject } from '../gameobjects/CardObject.ts';
+import { GameManager } from '../systems/GameManager.ts';
+
+/** Helper: get pool card def IDs as a Set */
+export function getPoolCardIds(): Set<string> {
+  const gm = GameManager.getInstance();
+  return new Set(gm.state.run?.pool.map(c => c.defId) ?? []);
+}
 
 /** Keyword tooltips — only blank/blanked */
 const KEYWORD_DEFS: Record<string, { label: string; description: string; color: string }> = {
@@ -81,6 +88,7 @@ export function createKeywordTooltips(
   cardX: number,
   cardY: number,
   cardScale: number,
+  poolCardIds?: Set<string>,
 ): Phaser.GameObjects.Container {
   const container = scene.add.container(0, 0);
 
@@ -195,6 +203,30 @@ export function createKeywordTooltips(
       // Move card from scene to container
       scene.children.remove(refCard);
       container.add(refCard);
+
+      // Show green checkmark if this referenced card is in the player's pool
+      if (poolCardIds && poolCardIds.has(refDef.id)) {
+        const checkSize = 16;
+        const checkX = refX + refCardW / 2 - checkSize / 2 + 2;
+        const checkY = refY - refCardH / 2 + checkSize / 2 - 2;
+
+        // Green circle background
+        const checkBg = scene.add.graphics();
+        checkBg.fillStyle(0x22c55e, 1);
+        checkBg.fillCircle(checkX, checkY, checkSize / 2 + 1);
+        checkBg.lineStyle(1.5, 0xffffff, 0.9);
+        checkBg.strokeCircle(checkX, checkY, checkSize / 2 + 1);
+        container.add(checkBg);
+
+        // Checkmark text
+        const checkText = scene.add.text(checkX, checkY, '✓', {
+          fontSize: '11px',
+          color: '#ffffff',
+          fontStyle: 'bold',
+          resolution: 2,
+        }).setOrigin(0.5);
+        container.add(checkText);
+      }
 
       curY += refCardH + 6;
     }

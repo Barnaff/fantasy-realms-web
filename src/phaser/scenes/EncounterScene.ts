@@ -8,7 +8,7 @@ import { DeckPileObject } from '../gameobjects/DeckPileObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 import type { GameState } from '../../types/game.ts';
 import { resolveCard } from '../../engine/scoring.ts';
-import { createKeywordTooltips } from '../utils/KeywordTooltips.ts';
+import { createKeywordTooltips, getPoolCardIds } from '../utils/KeywordTooltips.ts';
 import { getCardRelations } from '../utils/CardRelations.ts';
 import { TutorialOverlay } from '../gameobjects/TutorialOverlay.ts';
 
@@ -374,7 +374,7 @@ export class EncounterScene extends Phaser.Scene {
       const resolved = card.getCard();
       if (resolved) {
         this.keywordTooltips = createKeywordTooltips(
-          this, resolved, pos.x, pos.y - 20, targetScale,
+          this, resolved, pos.x, pos.y - 20, targetScale, getPoolCardIds(),
         );
       }
     }
@@ -939,7 +939,7 @@ export class EncounterScene extends Phaser.Scene {
       const resolved = card.getCard();
       if (resolved) {
         this.keywordTooltips = createKeywordTooltips(
-          this, resolved, pos.x, pos.y - 40, hoverScale,
+          this, resolved, pos.x, pos.y - 40, hoverScale, getPoolCardIds(),
         );
       }
     }

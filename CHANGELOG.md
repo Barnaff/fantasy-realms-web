@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.10.0 — 2026-03-28
+
+### New Features
+- Card art from Firebase Storage: all 75 cards have AI-generated artwork loaded from cloud
+- Art sync CLI: `npm run sync-art` downloads all card art from Firebase Storage to local build
+- Admin art generator: Gemini AI image generation with global prompt prefix, batch generation, Firebase Storage upload
+- Admin analytics dashboard: 6 charts (score distribution, level progress, most selected/skipped cards, win rate, hand composition)
+- Run analytics tracking: every level's hand, scores, reward picks/skips saved to Firestore
+- Reward templates: 6 structured reward options (same-suite pair, common+rare, epic+common, referenced+common, etc.)
+- Skipped card memory: cards not picked in rewards have 5% less chance per skip to appear again
+- Pool viewer accessible from rewards screen ("📋 View Deck" button)
+- Green checkmark on referenced card previews when the referenced card is already in the player's pool
+- Admin effect editor: custom UI per effect type with dropdowns, auto-generated card text, JSON preview
+
+### Improvements
+- Card art area 20% taller with scale-to-fill rendering
+- Art loaded from local `/art/{id}.png` files (reliable, no CORS issues)
+- Placeholder cards show tag-colored tint with "Placeholder" label
+- Art generator shows card art URLs from card data instantly (no per-card Firestore fetch)
+- Reward options shown as grouped vertical list with clickable option zones
+- Firebase Storage CORS and security rules configured
+- Reward synergy based only on direct card name references (not tag matching)
+
+### Fixes
+- Card art loading now works reliably via standard Phaser `this.load.image()` in `preload()`
+- Firebase Storage upload fixed (billing + CORS + security rules)
+- Unused TypeScript variables cleaned up for Amplify builds
+
 ## 0.9.1 — 2026-03-28
 
 ### New Features

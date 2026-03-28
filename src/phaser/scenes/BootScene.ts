@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS } from '../../config.ts';
 import { AuthManager } from '../systems/AuthManager.ts';
+import { CARD_DEFS } from '../../data/cards.ts';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -27,36 +28,32 @@ export class BootScene extends Phaser.Scene {
       fill.fillRoundedRect(barX + 2, barY + 2, (barW - 4) * v, barH - 4, 6);
     });
 
-    const loadingText = this.add.text(width / 2, barY - 30, 'Loading...', {
+    this.add.text(width / 2, barY - 30, 'Loading...', {
       fontFamily: FONTS.body,
       fontSize: '16px',
       color: '#6b5c4e',
     }).setOrigin(0.5);
 
-    this.load.on('complete', () => {
-      bg.destroy();
-      fill.destroy();
-      loadingText.destroy();
-    });
-
-    // Load card art
-    this.load.image('art-phoenix', '/art/phoenix.webp');
-    this.load.image('art-archmage', '/art/archmage.webp');
-    this.load.image('art-enchanted-blade', '/art/enchanted-blade.webp');
-    this.load.image('art-great-flood', '/art/great-flood.webp');
-    this.load.image('art-lich-lord', '/art/lich-lord.webp');
+    // Load card art from local public/art/ folder
+    // Files are synced from Firebase Storage via: npx tsx scripts/sync-art.ts
+    for (const card of CARD_DEFS) {
+      this.load.image(`art-${card.id}`, `/art/${card.id}.png`);
+    }
   }
 
   create() {
-    // Generate a soft glow particle texture
+    // Generate particle texture
     const gfx = this.make.graphics({ x: 0, y: 0 });
     gfx.fillStyle(0xffffff, 1);
     gfx.fillCircle(8, 8, 8);
     gfx.generateTexture('particle-glow', 16, 16);
     gfx.destroy();
 
+    // Log how many textures loaded
+    const loaded = CARD_DEFS.filter(c => this.textures.exists(`art-${c.id}`)).length;
+    console.log(`[BootScene] ${loaded}/${CARD_DEFS.length} card art textures loaded`);
+
     const goToTitle = () => {
-      // Wait for fonts
       if (document.fonts) {
         document.fonts.ready.then(() => this.scene.start('TitleScene'));
       } else {
@@ -64,7 +61,6 @@ export class BootScene extends Phaser.Scene {
       }
     };
 
-    // Initialize auth + load saved state
     const auth = AuthManager.getInstance();
     auth.init().then(goToTitle).catch(() => goToTitle());
   }

@@ -8,6 +8,8 @@ import EventsPage from './pages/EventsPage';
 import ThemesPage from './pages/ThemesPage';
 import ConfigPage from './pages/ConfigPage';
 import SimulatorPage from './pages/SimulatorPage';
+import ArtGeneratorPage from './pages/ArtGeneratorPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import './admin.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -22,6 +24,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="themes" element={<ThemesPage />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="simulator" element={<SimulatorPage />} />
+          <Route path="art" element={<ArtGeneratorPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

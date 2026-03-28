@@ -13,6 +13,9 @@ import { getAvailableNodes, markNodeVisited, findNode } from '../../engine/map.t
 import { generateEncounterForNode, generateBossEncounter } from '../../engine/encounters.ts';
 import { SeededRNG } from '../../utils/random.ts';
 import { EVENT_DEFS } from '../../data/events.ts';
+import { addDoc, collection } from 'firebase/firestore';
+import { db } from '../../firebase/config.ts';
+import type { RunRecord, LevelRecord, RewardRecord } from '../../types/analytics.ts';
 
 /**
  * Singleton that manages all game state — Phaser replacement for useGameStore.
@@ -25,6 +28,7 @@ export class GameManager {
   merchantStock: MerchantStock | null = null;
   removalsThisRun = 0;
   events: Phaser.Events.EventEmitter;
+  currentRunRecord: Partial<RunRecord> = {};
 
   private constructor() {
     this.state = createInitialGameState();
@@ -48,6 +52,21 @@ export class GameManager {
     this.state = startRun(seed);
     this.merchantStock = null;
     this.removalsThisRun = 0;
+
+    // Initialize analytics run record
+    this.currentRunRecord = {
+      id: `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      odUserId: '',
+      startedAt: new Date().toISOString(),
+      seed: this.state.run?.seed ?? 0,
+      levels: [],
+      rewards: [],
+      draftPickedCardIds: [],
+      levelsCompleted: 0,
+      totalScore: 0,
+      won: false,
+    };
+
     this.emit('stateChanged');
     this.emit('phaseChanged');
   }
@@ -56,6 +75,11 @@ export class GameManager {
     if (!this.state.run || !this.state.draftOptions) return;
     const option = this.state.draftOptions.find(o => o.id === optionId);
     if (!option) return;
+
+    // Track draft picks for analytics
+    if (this.currentRunRecord.draftPickedCardIds) {
+      this.currentRunRecord.draftPickedCardIds.push(...option.cardIds);
+    }
 
     // Add the 3 cards to pool
     let pool = this.state.run.pool;
@@ -73,7 +97,18 @@ export class GameManager {
     this.emit('phaseChanged');
   }
 
+  /**
+   * Save a completed run record with a specific won flag.
+   * Called from GameOverScene after determining victory status.
+   */
+  saveCompletedRun(won: boolean) {
+    if (this.currentRunRecord.id && !this.currentRunRecord.endedAt) {
+      this.saveRunRecord(won);
+    }
+  }
+
   resetToTitle() {
+    this.currentRunRecord = {};
     this.state = createInitialGameState();
     this.merchantStock = null;
     this.removalsThisRun = 0;
@@ -91,6 +126,29 @@ export class GameManager {
     this.state = { ...this.state, phase: 'game_over' };
     this.emit('stateChanged');
     this.emit('phaseChanged');
+  }
+
+  private async saveRunRecord(won: boolean) {
+    try {
+      this.currentRunRecord.endedAt = new Date().toISOString();
+      const record: RunRecord = {
+        id: this.currentRunRecord.id ?? `run_${Date.now()}`,
+        odUserId: this.currentRunRecord.odUserId ?? '',
+        startedAt: this.currentRunRecord.startedAt ?? new Date().toISOString(),
+        endedAt: this.currentRunRecord.endedAt,
+        seed: this.currentRunRecord.seed ?? 0,
+        won,
+        levelsCompleted: this.state.run?.encountersCleared ?? 0,
+        totalScore: this.state.run?.totalScore ?? 0,
+        finalPoolSize: this.state.run?.pool.length ?? 0,
+        levels: this.currentRunRecord.levels ?? [],
+        rewards: this.currentRunRecord.rewards ?? [],
+        draftPickedCardIds: this.currentRunRecord.draftPickedCardIds ?? [],
+      };
+      await addDoc(collection(db, 'runRecords'), record);
+    } catch (err) {
+      console.error('Failed to save run record:', err);
+    }
   }
 
   // ── Map navigation ──
@@ -269,6 +327,21 @@ export class GameManager {
     if (!this.state.lastScoreResult || !this.state.encounter) return;
     const passed = this.state.lastScoreResult.totalScore >= this.state.encounter.scoreThreshold;
 
+    // Track level record for analytics
+    const levelRecord: LevelRecord = {
+      levelIndex: this.state.run?.encountersCleared ?? 0,
+      encounterName: this.state.encounter.name,
+      targetScore: this.state.encounter.scoreThreshold,
+      actualScore: this.state.lastScoreResult.totalScore,
+      passed,
+      handCardIds: this.state.hand.cards.map(c => c.defId),
+      handScore: this.state.lastScoreResult.totalScore,
+      modifiers: this.state.encounter.modifiers?.map(m => ({ tag: m.tag, value: m.value })),
+    };
+    if (this.currentRunRecord.levels) {
+      this.currentRunRecord.levels.push(levelRecord);
+    }
+
     if (passed) {
       const rng = new SeededRNG(this.state.run!.seed + this.state.run!.encountersCleared);
       const reward = generatePostEncounterReward(
@@ -278,6 +351,7 @@ export class GameManager {
         this.state.encounter.rewardTier,
         this.state.relics,
         rng,
+        this.state.run!.skippedCardCounts,
       );
       const goldEarned = 10 + Math.floor(this.state.lastScoreResult.totalScore / 10);
 
@@ -302,13 +376,55 @@ export class GameManager {
 
   // ── Post-encounter ──
 
-  selectCardReward(cardDefId: string) {
+  selectCardReward(cardDefIdOrIndex: string | number) {
     if (!this.state.run) return;
-    const pool = addCardToPool(this.state.run.pool, cardDefId);
+
+    // Track reward selection for analytics
+    {
+      const analyticsOptions = this.state.postEncounterReward?.cardChoices ?? [];
+      const selectedIdx = typeof cardDefIdOrIndex === 'number' ? cardDefIdOrIndex : -1;
+      const selectedCards = selectedIdx >= 0 && analyticsOptions[selectedIdx]
+        ? analyticsOptions[selectedIdx].cards
+        : (typeof cardDefIdOrIndex === 'string' ? [cardDefIdOrIndex] : []);
+      const rewardRecord: RewardRecord = {
+        levelIndex: this.state.run.encountersCleared - 1,
+        offeredOptions: analyticsOptions.map(o => o.cards),
+        selectedOptionIndex: selectedIdx,
+        selectedCardIds: selectedCards,
+      };
+      if (this.currentRunRecord.rewards) {
+        this.currentRunRecord.rewards.push(rewardRecord);
+      }
+    }
+
+    let pool = this.state.run.pool;
+    const skipped = { ...this.state.run.skippedCardCounts };
+    const selectedIndex = typeof cardDefIdOrIndex === 'number' ? cardDefIdOrIndex : -1;
+
+    if (typeof cardDefIdOrIndex === 'number') {
+      const option = this.state.postEncounterReward?.cardChoices[cardDefIdOrIndex];
+      if (option) {
+        for (const defId of option.cards) {
+          pool = addCardToPool(pool, defId);
+        }
+      }
+    } else {
+      pool = addCardToPool(pool, cardDefIdOrIndex);
+    }
+
+    // Record skipped cards: all cards from NON-selected options
+    const allOptions = this.state.postEncounterReward?.cardChoices ?? [];
+    for (let i = 0; i < allOptions.length; i++) {
+      if (i === selectedIndex) continue; // don't count selected option
+      for (const defId of allOptions[i].cards) {
+        skipped[defId] = (skipped[defId] || 0) + 1;
+      }
+    }
+
     this.state = {
       ...this.state,
       phase: 'map',
-      run: { ...this.state.run, pool },
+      run: { ...this.state.run, pool, skippedCardCounts: skipped },
       postEncounterReward: null,
     };
     this.emit('stateChanged');
@@ -316,9 +432,40 @@ export class GameManager {
   }
 
   skipCardReward() {
+    if (!this.state.run) {
+      this.state = { ...this.state, phase: 'map', postEncounterReward: null };
+      this.emit('stateChanged');
+      this.emit('phaseChanged');
+      return;
+    }
+
+    // Track skipped reward for analytics
+    {
+      const analyticsOptions = this.state.postEncounterReward?.cardChoices ?? [];
+      const rewardRecord: RewardRecord = {
+        levelIndex: this.state.run.encountersCleared - 1,
+        offeredOptions: analyticsOptions.map(o => o.cards),
+        selectedOptionIndex: -1,
+        selectedCardIds: [],
+      };
+      if (this.currentRunRecord.rewards) {
+        this.currentRunRecord.rewards.push(rewardRecord);
+      }
+    }
+
+    // All offered cards are skipped
+    const skipped = { ...this.state.run.skippedCardCounts };
+    const allOptions = this.state.postEncounterReward?.cardChoices ?? [];
+    for (const option of allOptions) {
+      for (const defId of option.cards) {
+        skipped[defId] = (skipped[defId] || 0) + 1;
+      }
+    }
+
     this.state = {
       ...this.state,
       phase: 'map',
+      run: { ...this.state.run, skippedCardCounts: skipped },
       postEncounterReward: null,
     };
     this.emit('stateChanged');

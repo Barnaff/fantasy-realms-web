@@ -1,7 +1,7 @@
-import type { CardInstance } from '../types/card.ts';
-import type { PostEncounterReward } from '../types/game.ts';
+import type { CardDef, CardInstance } from '../types/card.ts';
+import type { CardRewardOption, PostEncounterReward } from '../types/game.ts';
 import type { RelicInstance } from '../types/relic.ts';
-import { CARD_DEFS } from '../data/cards.ts';
+import { CARD_DEFS, CARD_DEF_MAP } from '../data/cards.ts';
 import { RELIC_DEF_MAP } from '../data/relics.ts';
 import { SeededRNG, generateId } from '../utils/random.ts';
 
@@ -16,36 +16,186 @@ export function createStartingPool(_rng: SeededRNG): CardInstance[] {
   }));
 }
 
+/**
+ * Find card IDs directly referenced by name in pool cards' scoring effects.
+ * Only counts explicit cardId references (bonusIfCardPresent, penaltyIfCardPresent, etc.)
+ */
+function getPoolReferencedCardIds(pool: CardInstance[]): Set<string> {
+  const refs = new Set<string>();
+  for (const inst of pool) {
+    const def = CARD_DEF_MAP.get(inst.defId);
+    if (!def) continue;
+    for (const eff of def.scoringEffects) {
+      const cardId = eff.params.cardId as string | undefined;
+      if (cardId) refs.add(cardId);
+    }
+  }
+  return refs;
+}
+
+
+function getRarityLabel(cards: CardDef[]): string {
+  const counts: Record<string, number> = {};
+  for (const c of cards) {
+    const r = c.rarity || 'common';
+    counts[r] = (counts[r] || 0) + 1;
+  }
+  const parts: string[] = [];
+  if (counts.epic) parts.push(`${counts.epic} Epic`);
+  if (counts.rare) parts.push(`${counts.rare} Rare`);
+  if (counts.common) parts.push(`${counts.common} Common`);
+  if (counts.starting) parts.push(`${counts.starting} Starting`);
+  return parts.join(', ');
+}
+
+/**
+ * Reward option templates. Each template defines the composition of a reward group.
+ */
+type TemplateSlot =
+  | { type: 'rarity'; rarity: string; sameSuiteAs?: number }
+  | { type: 'diffSuite'; rarity: string }
+  | { type: 'referenced' };
+
+interface RewardTemplate {
+  label: string;
+  slots: TemplateSlot[];
+}
+
+const REWARD_TEMPLATES: RewardTemplate[] = [
+  { label: '2 Common (same suite)', slots: [
+    { type: 'rarity', rarity: 'common' },
+    { type: 'rarity', rarity: 'common', sameSuiteAs: 0 },
+  ]},
+  { label: '1 Common + 1 Rare', slots: [
+    { type: 'rarity', rarity: 'common' },
+    { type: 'diffSuite', rarity: 'rare' },
+  ]},
+  { label: '2 Common + 1 Rare', slots: [
+    { type: 'rarity', rarity: 'common' },
+    { type: 'diffSuite', rarity: 'common' },
+    { type: 'diffSuite', rarity: 'rare' },
+  ]},
+  { label: '1 Epic + 1 Common', slots: [
+    { type: 'rarity', rarity: 'epic' },
+    { type: 'diffSuite', rarity: 'common' },
+  ]},
+  { label: '1 Referenced + 1 Common', slots: [
+    { type: 'referenced' },
+    { type: 'diffSuite', rarity: 'common' },
+  ]},
+  { label: '3 Common (different suites)', slots: [
+    { type: 'rarity', rarity: 'common' },
+    { type: 'diffSuite', rarity: 'common' },
+    { type: 'diffSuite', rarity: 'common' },
+  ]},
+];
+
+function pickByRarity(
+  available: CardDef[], rarity: string, rng: SeededRNG,
+  usedIds: Set<string>, excludeTags?: Set<string>, requireTag?: string,
+): CardDef | null {
+  let pool = available.filter(c =>
+    c.rarity === rarity && !usedIds.has(c.id) &&
+    (!excludeTags || !c.tags.some(t => excludeTags.has(t))) &&
+    (!requireTag || (c.tags as string[]).includes(requireTag))
+  );
+  if (pool.length === 0) {
+    // Fallback: ignore tag constraints
+    pool = available.filter(c => c.rarity === rarity && !usedIds.has(c.id));
+  }
+  if (pool.length === 0) return null;
+  return rng.pick(pool, 1)[0];
+}
+
+function buildOption(
+  template: RewardTemplate,
+  available: CardDef[],
+  referencedIds: Set<string>,
+  rng: SeededRNG,
+  globalUsedIds: Set<string>,
+): CardRewardOption | null {
+  const picked: CardDef[] = [];
+  const localUsedIds = new Set(globalUsedIds);
+  const usedTags = new Set<string>();
+
+  for (let si = 0; si < template.slots.length; si++) {
+    const slot = template.slots[si];
+    let card: CardDef | null = null;
+
+    switch (slot.type) {
+      case 'referenced': {
+        const refs = available.filter(c => referencedIds.has(c.id) && !localUsedIds.has(c.id));
+        card = refs.length > 0
+          ? rng.pick(refs, 1)[0]
+          : pickByRarity(available, 'common', rng, localUsedIds);
+        break;
+      }
+      case 'rarity': {
+        if (slot.sameSuiteAs !== undefined) {
+          const refCard = picked[slot.sameSuiteAs];
+          const requireTag = refCard?.tags[0];
+          card = pickByRarity(available, slot.rarity, rng, localUsedIds, undefined, requireTag);
+        } else {
+          card = pickByRarity(available, slot.rarity, rng, localUsedIds);
+        }
+        break;
+      }
+      case 'diffSuite': {
+        card = pickByRarity(available, slot.rarity, rng, localUsedIds, usedTags);
+        break;
+      }
+    }
+
+    if (!card) return null; // template can't be filled
+    picked.push(card);
+    localUsedIds.add(card.id);
+    for (const t of card.tags) usedTags.add(t);
+  }
+
+  // Commit used IDs globally
+  for (const c of picked) globalUsedIds.add(c.id);
+
+  return {
+    cards: picked.map(c => c.id),
+    label: `${picked.length} cards (${getRarityLabel(picked)})`,
+  };
+}
+
 export function generateCardRewards(
   pool: CardInstance[],
-  rewardTier: 'normal' | 'elite' | 'boss',
+  _rewardTier: 'normal' | 'elite' | 'boss',
   rng: SeededRNG,
-): string[] {
+  skippedCounts: Record<string, number> = {},
+): CardRewardOption[] {
   const poolDefIds = new Set(pool.map(c => c.defId));
-  const available = CARD_DEFS.filter(c => !poolDefIds.has(c.id));
+
+  // Filter available — exclude pool cards, starting rarity, apply skip penalty
+  const available = CARD_DEFS.filter(c => {
+    if (poolDefIds.has(c.id) || c.rarity === 'starting') return false;
+    const skipCount = skippedCounts[c.id] || 0;
+    if (skipCount > 0) {
+      const keepChance = Math.max(0, 1 - skipCount * 0.05);
+      if (rng.next() > keepChance) return false;
+    }
+    return true;
+  });
 
   if (available.length === 0) return [];
 
-  let count: number;
-  switch (rewardTier) {
-    case 'boss':
-      count = 4;
-      break;
-    case 'elite':
-      count = 3;
-      break;
-    default:
-      count = 3;
+  const referencedIds = getPoolReferencedCardIds(pool);
+  const globalUsedIds = new Set<string>();
+
+  // Pick 3 random templates (no duplicates)
+  const shuffled = rng.shuffle([...REWARD_TEMPLATES]);
+  const options: CardRewardOption[] = [];
+
+  for (const template of shuffled) {
+    if (options.length >= 3) break;
+    const option = buildOption(template, available, referencedIds, rng, globalUsedIds);
+    if (option) options.push(option);
   }
 
-  // For boss tier, prefer higher base value cards
-  if (rewardTier === 'boss') {
-    const sorted = [...available].sort((a, b) => b.baseValue - a.baseValue);
-    const topHalf = sorted.slice(0, Math.ceil(sorted.length / 2));
-    return rng.pick(topHalf, count).map(c => c.id);
-  }
-
-  return rng.pick(available, count).map(c => c.id);
+  return options;
 }
 
 export function addCardToPool(pool: CardInstance[], cardDefId: string): CardInstance[] {
@@ -106,8 +256,9 @@ export function generatePostEncounterReward(
   rewardTier: 'normal' | 'elite' | 'boss',
   relics: RelicInstance[],
   rng: SeededRNG,
+  skippedCounts: Record<string, number> = {},
 ): PostEncounterReward {
-  const cardChoices = generateCardRewards(pool, rewardTier, rng);
+  const cardChoices = generateCardRewards(pool, rewardTier, rng, skippedCounts);
   const gold = calculateGoldReward(score, threshold, rewardTier, relics);
 
   return {

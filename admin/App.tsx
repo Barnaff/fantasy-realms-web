@@ -10,6 +10,8 @@ const NAV_ITEMS = [
   { to: '/themes', label: 'Themes', icon: '\u{1F3A8}' },
   { to: '/config', label: 'Config', icon: '\u{2699}\u{FE0F}' },
   { to: '/simulator', label: 'Simulator', icon: '\u{1F9EA}' },
+  { to: '/art', label: 'Art Generator', icon: '\u{1F3A8}' },
+  { to: '/analytics', label: 'Analytics', icon: '\u{1F4CA}' },
 ];
 
 export default function App() {

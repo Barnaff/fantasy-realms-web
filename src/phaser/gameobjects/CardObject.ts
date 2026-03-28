@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { ResolvedCard, Tag } from '../../types/card.ts';
 import { RARITY_COLORS } from '../../types/card.ts';
 import { CARD, FONTS, COLORS } from '../../config.ts';
-import { TAG_COLORS, TAG_ART_FALLBACK } from '../utils/Colors.ts';
+import { TAG_COLORS } from '../utils/Colors.ts';
 import { createRichEffectText, isPenaltyEffect } from '../utils/TextFormatter.ts';
 import { groupEffects } from '../utils/EffectGrouper.ts';
 import { TagBadgeObject } from './TagBadgeObject.ts';
@@ -50,21 +50,35 @@ export class CardObject extends Phaser.GameObjects.Container {
     this.add(border);
 
     // --- 3. Art area ---
-    const artKey = card.art ?? (primaryTag ? TAG_ART_FALLBACK[primaryTag] : 'art-phoenix');
+    // Priority: Firebase art (art-{defId}), otherwise tag-colored placeholder
+    const firebaseArtKey = `art-${card.defId}`;
     const artW = W - 16;
-    const artH = Math.round(H * 0.38);
-    const artY = -H / 2 + 10 + artH / 2; // positioned in upper portion
+    const artH = Math.round(H * 0.456); // 20% taller than 0.38
+    const artY = -H / 2 + 10 + artH / 2;
 
-    if (scene.textures.exists(artKey)) {
-      this.artImage = scene.add.image(0, artY, artKey);
+    if (scene.textures.exists(firebaseArtKey)) {
+      this.artImage = scene.add.image(0, artY, firebaseArtKey);
       this.artImage.setDisplaySize(artW, artH);
       this.add(this.artImage);
     } else {
-      // Fallback: colored rectangle
+      // Placeholder: tag-colored tinted rectangle with label
       const artFallback = scene.add.graphics();
-      artFallback.fillStyle(tagColor, 0.2);
+      artFallback.fillStyle(tagColor, 0.25);
       artFallback.fillRect(-artW / 2, artY - artH / 2, artW, artH);
+      // Add subtle gradient overlay
+      artFallback.fillStyle(tagColor, 0.1);
+      artFallback.fillRect(-artW / 2, artY - artH / 2, artW, artH / 2);
       this.add(artFallback);
+
+      // "Placeholder" label
+      const phLabel = scene.add.text(0, artY, 'Placeholder', {
+        fontFamily: FONTS.body,
+        fontSize: '7px',
+        color: '#888',
+        fontStyle: 'italic',
+        resolution: RES,
+      }).setOrigin(0.5);
+      this.add(phLabel);
     }
 
     // --- 4. Base value circle ---

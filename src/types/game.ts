@@ -79,8 +79,13 @@ export type PoolModification =
   | { type: 'upgrade_card'; cardDefId: string; newBaseValue: number }
   | { type: 'transform_tag'; cardDefId: string; oldTag: Tag; newTag: Tag };
 
+export interface CardRewardOption {
+  cards: string[]; // card def IDs in this option group
+  label: string;   // e.g. "Option 1 · 3 cards (1 Rare, 2 Common)"
+}
+
 export interface PostEncounterReward {
-  cardChoices: string[]; // card def IDs to choose from
+  cardChoices: CardRewardOption[]; // grouped card options to choose from
   gold: number;
   relicChoice?: string; // relic def ID (boss rewards)
 }
@@ -109,6 +114,8 @@ export interface RunState {
   totalScore: number;
   gold: number;
   encountersCleared: number;
+  /** Tracks how many times each card was offered but not picked. cardDefId → skip count */
+  skippedCardCounts: Record<string, number>;
 }
 
 export type TurnPhase = 'draw' | 'discard';

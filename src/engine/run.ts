@@ -99,6 +99,7 @@ export function startRun(seed?: number): GameState {
       totalScore: 0,
       gold: 50,
       encountersCleared: 0,
+      skippedCardCounts: {},
     },
     encounter: null,
     river: null,
