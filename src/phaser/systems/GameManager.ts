@@ -13,9 +13,9 @@ import { getAvailableNodes, markNodeVisited, findNode } from '../../engine/map.t
 import { generateEncounterForNode, generateBossEncounter } from '../../engine/encounters.ts';
 import { SeededRNG } from '../../utils/random.ts';
 import { EVENT_DEFS } from '../../data/events.ts';
-import { addDoc, collection } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config.ts';
-import type { RunRecord, LevelRecord, RewardRecord } from '../../types/analytics.ts';
+import type { RunRecord, LevelRecord, RewardRecord, MapNodeRecord } from '../../types/analytics.ts';
 
 /**
  * Singleton that manages all game state — Phaser replacement for useGameStore.
@@ -62,6 +62,7 @@ export class GameManager {
       levels: [],
       rewards: [],
       draftPickedCardIds: [],
+      mapChoices: [],
       levelsCompleted: 0,
       totalScore: 0,
       won: false,
@@ -76,12 +77,25 @@ export class GameManager {
     const option = this.state.draftOptions.find(o => o.id === optionId);
     if (!option) return;
 
-    // Track draft picks for analytics
+    // Track draft for analytics
+    const selectedIdx = this.state.draftOptions.indexOf(option);
+    const allOptions = this.state.draftOptions;
+    const skippedCards: string[] = [];
+    for (let i = 0; i < allOptions.length; i++) {
+      if (i !== selectedIdx) skippedCards.push(...allOptions[i].cardIds);
+    }
+
     if (this.currentRunRecord.draftPickedCardIds) {
       this.currentRunRecord.draftPickedCardIds.push(...option.cardIds);
     }
+    this.currentRunRecord.draft = {
+      offeredOptions: JSON.stringify(allOptions.map(o => o.cardIds)),
+      selectedOptionIndex: selectedIdx,
+      selectedCardIds: [...option.cardIds],
+      skippedCardIds: skippedCards,
+    };
 
-    // Add the 3 cards to pool
+    // Add the cards to pool
     let pool = this.state.run.pool;
     for (const cardId of option.cardIds) {
       pool = addCardToPool(pool, cardId);
@@ -93,6 +107,7 @@ export class GameManager {
       run: { ...this.state.run, pool },
       draftOptions: null,
     };
+    this.saveRunProgress();
     this.emit('stateChanged');
     this.emit('phaseChanged');
   }
@@ -128,27 +143,48 @@ export class GameManager {
     this.emit('phaseChanged');
   }
 
-  private async saveRunRecord(won: boolean) {
+  /** Build the current run record snapshot */
+  private buildRunRecord(won: boolean, ended: boolean): RunRecord {
+    return {
+      id: this.currentRunRecord.id ?? `run_${Date.now()}`,
+      odUserId: this.currentRunRecord.odUserId ?? '',
+      startedAt: this.currentRunRecord.startedAt ?? new Date().toISOString(),
+      endedAt: ended ? new Date().toISOString() : '',
+      seed: this.currentRunRecord.seed ?? 0,
+      won,
+      levelsCompleted: this.state.run?.encountersCleared ?? 0,
+      totalScore: this.state.run?.totalScore ?? 0,
+      finalPoolSize: this.state.run?.pool.length ?? 0,
+      levels: this.currentRunRecord.levels ?? [],
+      rewards: this.currentRunRecord.rewards ?? [],
+      draftPickedCardIds: this.currentRunRecord.draftPickedCardIds ?? [],
+      draft: this.currentRunRecord.draft,
+      mapChoices: this.currentRunRecord.mapChoices ?? [],
+    };
+  }
+
+  /** Save or update the run record in Firestore (upsert by run ID) */
+  private async saveRunRecord(won: boolean, ended = true) {
     try {
-      this.currentRunRecord.endedAt = new Date().toISOString();
-      const record: RunRecord = {
-        id: this.currentRunRecord.id ?? `run_${Date.now()}`,
-        odUserId: this.currentRunRecord.odUserId ?? '',
-        startedAt: this.currentRunRecord.startedAt ?? new Date().toISOString(),
-        endedAt: this.currentRunRecord.endedAt,
-        seed: this.currentRunRecord.seed ?? 0,
-        won,
-        levelsCompleted: this.state.run?.encountersCleared ?? 0,
-        totalScore: this.state.run?.totalScore ?? 0,
-        finalPoolSize: this.state.run?.pool.length ?? 0,
-        levels: this.currentRunRecord.levels ?? [],
-        rewards: this.currentRunRecord.rewards ?? [],
-        draftPickedCardIds: this.currentRunRecord.draftPickedCardIds ?? [],
-      };
-      await addDoc(collection(db, 'runRecords'), record);
+      const record = this.buildRunRecord(won, ended);
+      await setDoc(doc(db, 'runRecords', record.id), record);
     } catch (err) {
       console.error('Failed to save run record:', err);
     }
+  }
+
+  /** Incrementally save run progress after each level (non-blocking) */
+  private saveRunProgress() {
+    if (!this.currentRunRecord.id) return;
+    const record = this.buildRunRecord(false, false);
+    console.log('[Analytics] saveRunProgress:', {
+      levels: record.levels.length,
+      rewards: record.rewards.length,
+      levelsCompleted: record.levelsCompleted,
+      totalScore: record.totalScore,
+      cardScoresInLastLevel: record.levels[record.levels.length - 1]?.cardScores?.length ?? 0,
+    });
+    this.saveRunRecord(false, false).catch(() => {});
   }
 
   // ── Map navigation ──
@@ -162,6 +198,19 @@ export class GameManager {
     if (!this.state.run?.map) return;
     const node = findNode(this.state.run.map, nodeId);
     if (!node) return;
+
+    // Track map choice for analytics
+    const available = this.getAvailableMapNodes();
+    if (this.currentRunRecord.mapChoices && available.length > 0) {
+      // Determine layer from node position
+      const layerIdx = this.state.run.map.layers.findIndex(l => l.nodes.some(n => n.id === nodeId));
+      const mapRecord: MapNodeRecord = {
+        layer: layerIdx,
+        selectedNodeType: node.type,
+        availableNodeTypes: available.map(n => n.type),
+      };
+      this.currentRunRecord.mapChoices.push(mapRecord);
+    }
 
     const rng = new SeededRNG(this.state.run.seed + nodeId.length);
 
@@ -326,6 +375,13 @@ export class GameManager {
   acknowledgeScore() {
     if (!this.state.lastScoreResult || !this.state.encounter) return;
     const passed = this.state.lastScoreResult.totalScore >= this.state.encounter.scoreThreshold;
+    console.log('[Analytics] acknowledgeScore:', {
+      passed,
+      score: this.state.lastScoreResult.totalScore,
+      target: this.state.encounter.scoreThreshold,
+      breakdownLen: this.state.lastScoreResult.breakdown.length,
+      handLen: this.state.hand.cards.length,
+    });
 
     // Track level record for analytics
     const levelRecord: LevelRecord = {
@@ -336,6 +392,12 @@ export class GameManager {
       passed,
       handCardIds: this.state.hand.cards.map(c => c.defId),
       handScore: this.state.lastScoreResult.totalScore,
+      cardScores: this.state.lastScoreResult.breakdown.map(b => ({
+        cardId: b.cardId,
+        baseValue: b.baseValue,
+        finalValue: b.finalValue,
+        blanked: b.blanked,
+      })),
       modifiers: this.state.encounter.modifiers?.map(m => ({ tag: m.tag, value: m.value })),
     };
     if (this.currentRunRecord.levels) {
@@ -370,6 +432,9 @@ export class GameManager {
       this.state = { ...this.state, phase: 'game_over' };
     }
 
+    // Save progress AFTER state is updated with new scores/levels
+    this.saveRunProgress();
+
     this.emit('stateChanged');
     this.emit('phaseChanged');
   }
@@ -378,6 +443,7 @@ export class GameManager {
 
   selectCardReward(cardDefIdOrIndex: string | number) {
     if (!this.state.run) return;
+    console.log('[Analytics] selectCardReward called with:', cardDefIdOrIndex);
 
     // Track reward selection for analytics
     {
@@ -386,11 +452,16 @@ export class GameManager {
       const selectedCards = selectedIdx >= 0 && analyticsOptions[selectedIdx]
         ? analyticsOptions[selectedIdx].cards
         : (typeof cardDefIdOrIndex === 'string' ? [cardDefIdOrIndex] : []);
+      const skippedCards: string[] = [];
+      for (let i = 0; i < analyticsOptions.length; i++) {
+        if (i !== selectedIdx) skippedCards.push(...analyticsOptions[i].cards);
+      }
       const rewardRecord: RewardRecord = {
         levelIndex: this.state.run.encountersCleared - 1,
-        offeredOptions: analyticsOptions.map(o => o.cards),
+        offeredOptions: JSON.stringify(analyticsOptions.map(o => o.cards)),
         selectedOptionIndex: selectedIdx,
         selectedCardIds: selectedCards,
+        skippedCardIds: skippedCards,
       };
       if (this.currentRunRecord.rewards) {
         this.currentRunRecord.rewards.push(rewardRecord);
@@ -427,6 +498,7 @@ export class GameManager {
       run: { ...this.state.run, pool, skippedCardCounts: skipped },
       postEncounterReward: null,
     };
+    this.saveRunProgress();
     this.emit('stateChanged');
     this.emit('phaseChanged');
   }
@@ -442,11 +514,14 @@ export class GameManager {
     // Track skipped reward for analytics
     {
       const analyticsOptions = this.state.postEncounterReward?.cardChoices ?? [];
+      const allSkipped: string[] = [];
+      for (const opt of analyticsOptions) allSkipped.push(...opt.cards);
       const rewardRecord: RewardRecord = {
         levelIndex: this.state.run.encountersCleared - 1,
-        offeredOptions: analyticsOptions.map(o => o.cards),
+        offeredOptions: JSON.stringify(analyticsOptions.map(o => o.cards)),
         selectedOptionIndex: -1,
         selectedCardIds: [],
+        skippedCardIds: allSkipped,
       };
       if (this.currentRunRecord.rewards) {
         this.currentRunRecord.rewards.push(rewardRecord);
@@ -468,6 +543,7 @@ export class GameManager {
       run: { ...this.state.run, skippedCardCounts: skipped },
       postEncounterReward: null,
     };
+    this.saveRunProgress();
     this.emit('stateChanged');
     this.emit('phaseChanged');
   }

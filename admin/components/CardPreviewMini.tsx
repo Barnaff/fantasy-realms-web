@@ -34,7 +34,7 @@ interface Props {
 export function CardPreviewMini({ card, width = 120, showEffects = true, blanked = false, onClick, style }: Props) {
   const scale = width / 120;
   const borderColor = TAG_COLORS[card.tags[0]] || '#999';
-  const artSrc = card.art || `/art/${TAG_ART_FALLBACK[card.tags[0]] || 'phoenix'}.webp`;
+  const artSrc = card.art || `/art/${card.id}.png`;
 
   return (
     <div
@@ -124,29 +124,32 @@ export function CardPreviewMini({ card, width = 120, showEffects = true, blanked
       {showEffects && card.scoringEffects && card.scoringEffects.length > 0 && (
         <div style={{
           padding: `${2 * scale}px ${5 * scale}px ${4 * scale}px`,
-          maxHeight: 40 * scale,
-          overflow: 'hidden',
         }}>
-          {card.scoringEffects.slice(0, 3).map((eff, i) => {
+          {card.scoringEffects.map((eff, i) => {
             const isNeg = eff.effectId.includes('penalty') || eff.effectId.includes('blank');
             return (
               <div key={i} style={{
                 fontSize: 7 * scale,
                 color: isNeg ? '#dc2626' : '#166534',
                 lineHeight: 1.3,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
               }}>
                 {eff.description}
               </div>
             );
           })}
-          {card.scoringEffects.length > 3 && (
-            <div style={{ fontSize: 6 * scale, color: '#aaa' }}>
-              +{card.scoringEffects.length - 3} more
-            </div>
-          )}
+        </div>
+      )}
+
+      {/* Flavor text */}
+      {showEffects && card.flavor && (
+        <div style={{
+          padding: `0 ${5 * scale}px ${3 * scale}px`,
+          fontSize: 6 * scale,
+          color: '#999',
+          fontStyle: 'italic',
+          lineHeight: 1.3,
+        }}>
+          {card.flavor}
         </div>
       )}
 

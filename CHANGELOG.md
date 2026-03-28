@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.11.0 — 2026-03-29
+
+### New Features
+- Full run analytics tracking: per-card scores, draft picks/skips, reward picks/skips, map choices
+- Admin Hands History page: browse all level hands with card previews, scores, and pass/fail status
+- Card art thumbnails in analytics charts (Most Picked/Most Skipped card chips)
+- Draft analytics: tracks offered options, selected option, picked and skipped cards
+- Per-card scoring in level records: baseValue, finalValue, blanked status for each card
+- Skipped cards tracking: explicit `skippedCardIds` field in reward and draft records
+- Pool viewer button ("📋 View Deck") on rewards screen
+
+### Improvements
+- Analytics uses per-level `passed` flag instead of run-level `won` (fixes all levels showing as losses)
+- `saveRunProgress()` called AFTER state update (fixes levelsCompleted=0 and totalScore=0 in records)
+- Firestore query simplified: no `orderBy` index requirement, sorts client-side
+- CardPreviewMini shows all effects (removed 3-effect limit), flavor text, and art from `/art/{id}.png`
+- Hands History uses CardPreviewMini for consistent card rendering with art
+- Score overlay on hand cards shows final value, bonus/penalty diff, and BLANK label
+- Hover preview enlarged to 180-200px width for better readability
+- Nested arrays serialized as JSON strings for Firestore compatibility
+- Firestore security rules deployed: anonymous users can write run records
+- Green checkmark on referenced card previews when card is in player's pool
+
+### Fixes
+- Firestore nested array error (`offeredOptions: string[][]` → JSON string)
+- Analytics charts now properly show data from level records
+- Run `won` flag correctly set only on final save (not incremental)
+- Debug logging added to track analytics data flow
+
 ## 0.10.0 — 2026-03-28
 
 ### New Features

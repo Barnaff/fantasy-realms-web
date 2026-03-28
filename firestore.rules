@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Game data — public read, admin write
+    match /gameData/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Card art references — public read, auth write
+    match /cardArt/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Run analytics — any authenticated user (including anonymous) can write
+    match /runRecords/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Player data — own data only
+    match /players/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

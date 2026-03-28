@@ -20,7 +20,8 @@ export class GameOverScene extends Phaser.Scene {
     const run = gm.state.run;
     const lastScore = gm.state.lastScoreResult?.totalScore ?? 0;
     const threshold = gm.state.encounter?.scoreThreshold ?? 0;
-    const passed = lastScore >= threshold;
+    // Won = completed all encounters in the act (not just passed last level)
+    const passed = gm.state.phase === 'game_over' && lastScore >= threshold && gm.state.encounter != null;
 
     // Record stats and clear save
     auth.recordRunEnd({

@@ -10,6 +10,7 @@ import ConfigPage from './pages/ConfigPage';
 import SimulatorPage from './pages/SimulatorPage';
 import ArtGeneratorPage from './pages/ArtGeneratorPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import HandsHistoryPage from './pages/HandsHistoryPage';
 import './admin.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -26,6 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="simulator" element={<SimulatorPage />} />
           <Route path="art" element={<ArtGeneratorPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="hands" element={<HandsHistoryPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

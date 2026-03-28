@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/simulator', label: 'Simulator', icon: '\u{1F9EA}' },
   { to: '/art', label: 'Art Generator', icon: '\u{1F3A8}' },
   { to: '/analytics', label: 'Analytics', icon: '\u{1F4CA}' },
+  { to: '/hands', label: 'Hands History', icon: '\u{1F0CF}' },
 ];
 
 export default function App() {

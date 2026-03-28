@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { collection, query, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../src/firebase/config';
 import type { RunRecord } from '../../src/types/analytics';
+import { CARD_DEFS, CARD_DEF_MAP } from '../../src/data/cards';
+import { CardPreviewMini } from '../components/CardPreviewMini';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,17 +18,7 @@ import {
 } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-);
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend);
 
 const TAG_COLORS: Record<string, string> = {
   Beast: '#22c55e', Fire: '#ef4444', Weather: '#60a5fa',
@@ -35,19 +27,16 @@ const TAG_COLORS: Record<string, string> = {
   Artifact: '#d97706', Wizard: '#7c3aed', Undead: '#4a5568',
 };
 
-const containerStyle: React.CSSProperties = {
-  background: '#fff',
-  borderRadius: 12,
-  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-  padding: 24,
-  marginBottom: 24,
-};
+// Build card ID → tags lookup
+const CARD_TAG_MAP = new Map<string, string[]>();
+for (const c of CARD_DEFS) CARD_TAG_MAP.set(c.id, [...c.tags]);
 
-const headerStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 600,
-  color: '#1f2937',
-  marginBottom: 16,
+const containerStyle: React.CSSProperties = {
+  background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: 24, marginBottom: 24,
+};
+const headerStyle: React.CSSProperties = { fontSize: 18, fontWeight: 600, color: '#1f2937', marginBottom: 16 };
+const statBox: React.CSSProperties = {
+  background: '#f9fafb', borderRadius: 8, padding: '12px 20px', textAlign: 'center' as const, minWidth: 100,
 };
 
 export default function AnalyticsPage() {
@@ -57,16 +46,11 @@ export default function AnalyticsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const q = query(
-          collection(db, 'runRecords'),
-          orderBy('endedAt', 'desc'),
-          limit(100),
-        );
+        const q = query(collection(db, 'runRecords'), limit(100));
         const snap = await getDocs(q);
         const records: RunRecord[] = [];
-        snap.forEach((doc) => {
-          records.push(doc.data() as RunRecord);
-        });
+        snap.forEach((d) => records.push(d.data() as RunRecord));
+        records.sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
         setRuns(records);
       } catch (err) {
         console.error('Failed to load run records:', err);
@@ -76,139 +60,143 @@ export default function AnalyticsPage() {
     })();
   }, []);
 
-  // Summary stats
+  // Flatten all levels from all runs
+  const allLevels = useMemo(() => runs.flatMap(r => r.levels || []), [runs]);
+  const allRewards = useMemo(() => runs.flatMap(r => r.rewards || []), [runs]);
+
+  // Summary stats — use level data, not run-level won flag
   const stats = useMemo(() => {
     if (runs.length === 0) return null;
+    const completedRuns = runs.filter(r => r.endedAt);
     const wins = runs.filter(r => r.won).length;
-    const avgScore = runs.reduce((s, r) => s + r.totalScore, 0) / runs.length;
-    const avgLevels = runs.reduce((s, r) => s + r.levelsCompleted, 0) / runs.length;
+    const passedLevels = allLevels.filter(l => l.passed).length;
+    const failedLevels = allLevels.filter(l => !l.passed).length;
+    const avgScore = allLevels.length > 0 ? allLevels.reduce((s, l) => s + l.actualScore, 0) / allLevels.length : 0;
+    const levelsPerRun = runs.length > 0 ? allLevels.filter(l => l.passed).length / runs.length : 0;
     return {
       totalRuns: runs.length,
-      winRate: ((wins / runs.length) * 100).toFixed(1),
+      completedRuns: completedRuns.length,
+      wins,
+      winRate: runs.length > 0 ? ((wins / runs.length) * 100).toFixed(1) : '0',
+      totalLevels: allLevels.length,
+      passedLevels,
+      failedLevels,
+      levelPassRate: allLevels.length > 0 ? ((passedLevels / allLevels.length) * 100).toFixed(1) : '0',
       avgScore: Math.round(avgScore),
-      avgLevels: avgLevels.toFixed(1),
+      avgLevelsPerRun: levelsPerRun.toFixed(1),
     };
-  }, [runs]);
+  }, [runs, allLevels]);
 
-  // Chart 1: Score Distribution
+  // Chart 1: Level Scores — passed vs failed
   const scoreDistData = useMemo(() => {
     const buckets: Record<string, { wins: number; losses: number }> = {};
-    const bucketSize = 50;
-    for (const r of runs) {
-      const bucketStart = Math.floor(r.totalScore / bucketSize) * bucketSize;
+    const bucketSize = 25;
+    for (const l of allLevels) {
+      const bucketStart = Math.floor(l.actualScore / bucketSize) * bucketSize;
       const label = `${bucketStart}-${bucketStart + bucketSize}`;
       if (!buckets[label]) buckets[label] = { wins: 0, losses: 0 };
-      if (r.won) buckets[label].wins++;
+      if (l.passed) buckets[label].wins++;
       else buckets[label].losses++;
     }
-    const sorted = Object.entries(buckets).sort((a, b) => {
-      const aNum = parseInt(a[0].split('-')[0]);
-      const bNum = parseInt(b[0].split('-')[0]);
-      return aNum - bNum;
-    });
+    const sorted = Object.entries(buckets).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
     return {
       labels: sorted.map(([k]) => k),
       datasets: [
-        {
-          label: 'Wins',
-          data: sorted.map(([, v]) => v.wins),
-          backgroundColor: '#22c55e',
-        },
-        {
-          label: 'Losses',
-          data: sorted.map(([, v]) => v.losses),
-          backgroundColor: '#ef4444',
-        },
+        { label: 'Passed', data: sorted.map(([, v]) => v.wins), backgroundColor: '#22c55e' },
+        { label: 'Failed', data: sorted.map(([, v]) => v.losses), backgroundColor: '#ef4444' },
       ],
     };
-  }, [runs]);
+  }, [allLevels]);
 
-  // Chart 2: Level Progress
+  // Chart 2: Level Progress — how many runs reached each level
   const levelProgressData = useMemo(() => {
-    const counts: Record<number, number> = {};
-    for (const r of runs) {
-      for (let i = 1; i <= r.levelsCompleted; i++) {
-        counts[i] = (counts[i] || 0) + 1;
-      }
+    const counts: Record<number, { passed: number; failed: number }> = {};
+    for (const l of allLevels) {
+      const idx = l.levelIndex;
+      if (!counts[idx]) counts[idx] = { passed: 0, failed: 0 };
+      if (l.passed) counts[idx].passed++;
+      else counts[idx].failed++;
     }
     const maxLevel = Math.max(...Object.keys(counts).map(Number), 0);
     const labels: string[] = [];
-    const data: number[] = [];
-    for (let i = 1; i <= maxLevel; i++) {
-      labels.push(`Level ${i}`);
-      data.push(counts[i] || 0);
+    const passed: number[] = [];
+    const failed: number[] = [];
+    for (let i = 0; i <= maxLevel; i++) {
+      labels.push(`Level ${i + 1}`);
+      passed.push(counts[i]?.passed || 0);
+      failed.push(counts[i]?.failed || 0);
     }
     return {
       labels,
-      datasets: [{
-        label: 'Runs reaching level',
-        data,
-        backgroundColor: '#6366f1',
-      }],
+      datasets: [
+        { label: 'Passed', data: passed, backgroundColor: '#22c55e' },
+        { label: 'Failed', data: failed, backgroundColor: '#ef4444' },
+      ],
     };
-  }, [runs]);
+  }, [allLevels]);
 
-  // Chart 3: Most Selected Cards
+  // Chart 3: Most Selected Cards (rewards + draft)
   const mostSelectedData = useMemo(() => {
     const counts: Record<string, number> = {};
+    // Reward picks
+    for (const reward of allRewards) {
+      for (const cardId of (reward.selectedCardIds || [])) {
+        counts[cardId] = (counts[cardId] || 0) + 1;
+      }
+    }
+    // Draft picks
     for (const r of runs) {
-      for (const reward of r.rewards) {
-        for (const cardId of reward.selectedCardIds) {
+      if (r.draft?.selectedCardIds) {
+        for (const cardId of r.draft.selectedCardIds) {
+          counts[cardId] = (counts[cardId] || 0) + 1;
+        }
+      } else {
+        // Backward compat
+        for (const cardId of (r.draftPickedCardIds || [])) {
           counts[cardId] = (counts[cardId] || 0) + 1;
         }
       }
     }
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 20);
     return {
-      labels: sorted.map(([id]) => id),
-      datasets: [{
-        label: 'Times selected',
-        data: sorted.map(([, c]) => c),
-        backgroundColor: '#3b82f6',
-      }],
+      labels: sorted.map(([id]) => id.replace(/-/g, ' ')),
+      ids: sorted.map(([id]) => id),
+      datasets: [{ label: 'Times picked', data: sorted.map(([, c]) => c), backgroundColor: '#3b82f6' }],
     };
-  }, [runs]);
+  }, [allRewards, runs]);
 
-  // Chart 4: Most Skipped Cards
+  // Chart 4: Most Skipped Cards (rewards + draft)
   const mostSkippedData = useMemo(() => {
-    const offered: Record<string, number> = {};
-    const selected: Record<string, number> = {};
+    const counts: Record<string, number> = {};
+    // Reward skips
+    for (const reward of allRewards) {
+      for (const cardId of (reward.skippedCardIds || [])) {
+        counts[cardId] = (counts[cardId] || 0) + 1;
+      }
+    }
+    // Draft skips
     for (const r of runs) {
-      for (const reward of r.rewards) {
-        for (const option of reward.offeredOptions) {
-          for (const cardId of option) {
-            offered[cardId] = (offered[cardId] || 0) + 1;
-          }
-        }
-        for (const cardId of reward.selectedCardIds) {
-          selected[cardId] = (selected[cardId] || 0) + 1;
+      if (r.draft?.skippedCardIds) {
+        for (const cardId of r.draft.skippedCardIds) {
+          counts[cardId] = (counts[cardId] || 0) + 1;
         }
       }
     }
-    const skipped: Record<string, number> = {};
-    for (const [id, count] of Object.entries(offered)) {
-      skipped[id] = count - (selected[id] || 0);
-    }
-    const sorted = Object.entries(skipped).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 20);
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 20);
     return {
-      labels: sorted.map(([id]) => id),
-      datasets: [{
-        label: 'Times skipped',
-        data: sorted.map(([, c]) => c),
-        backgroundColor: '#f59e0b',
-      }],
+      labels: sorted.map(([id]) => id.replace(/-/g, ' ')),
+      ids: sorted.map(([id]) => id),
+      datasets: [{ label: 'Times skipped', data: sorted.map(([, c]) => c), backgroundColor: '#f59e0b' }],
     };
-  }, [runs]);
+  }, [allRewards, runs]);
 
   // Chart 5: Win Rate by Level
   const winRateByLevelData = useMemo(() => {
-    const levelStats: Record<number, { wins: number; losses: number }> = {};
-    for (const r of runs) {
-      for (const level of r.levels) {
-        if (!levelStats[level.levelIndex]) levelStats[level.levelIndex] = { wins: 0, losses: 0 };
-        if (level.passed) levelStats[level.levelIndex].wins++;
-        else levelStats[level.levelIndex].losses++;
-      }
+    const levelStats: Record<number, { wins: number; total: number }> = {};
+    for (const l of allLevels) {
+      if (!levelStats[l.levelIndex]) levelStats[l.levelIndex] = { wins: 0, total: 0 };
+      levelStats[l.levelIndex].total++;
+      if (l.passed) levelStats[l.levelIndex].wins++;
     }
     const maxLevel = Math.max(...Object.keys(levelStats).map(Number), 0);
     const labels: string[] = [];
@@ -217,13 +205,12 @@ export default function AnalyticsPage() {
       const s = levelStats[i];
       if (!s) continue;
       labels.push(`Level ${i + 1}`);
-      const total = s.wins + s.losses;
-      data.push(total > 0 ? Math.round((s.wins / total) * 100) : 0);
+      data.push(Math.round((s.wins / s.total) * 100));
     }
     return {
       labels,
       datasets: [{
-        label: 'Win Rate %',
+        label: 'Pass Rate %',
         data,
         borderColor: '#8b5cf6',
         backgroundColor: 'rgba(139, 92, 246, 0.1)',
@@ -231,283 +218,248 @@ export default function AnalyticsPage() {
         tension: 0.3,
       }],
     };
-  }, [runs]);
+  }, [allLevels]);
 
-  // Chart 6: Hand Composition (tag distribution in winning vs losing hands)
+  // Chart 6: Tag Distribution in passed vs failed hands
   const handCompositionData = useMemo(() => {
     const winTags: Record<string, number> = {};
     const loseTags: Record<string, number> = {};
 
-    for (const r of runs) {
-      for (const level of r.levels) {
-        if (level.modifiers) {
-          // Use modifiers tags as proxy for hand composition tags
-        }
-        // Count card IDs by tag - we only have card def IDs, not tags directly.
-        // We'll aggregate the modifiers tags from levels as a proxy for tag distribution.
-      }
-    }
-
-    // Since we only store handCardIds (def IDs), we aggregate across all levels.
-    // For the pie chart, use the modifiers from level records.
-    // But modifiers are encounter modifiers, not hand tags.
-    // Instead, count frequency of cards in hands for winning vs losing,
-    // but we don't have tag info in RunRecord. Use a flat count approach.
-
-    // Actually, let's count the tags from the modifiers field on levels.
-    // These represent the encounter tag modifiers that were active.
-    for (const r of runs) {
-      for (const level of r.levels) {
-        const target = level.passed ? winTags : loseTags;
-        if (level.modifiers) {
-          for (const mod of level.modifiers) {
-            target[mod.tag] = (target[mod.tag] || 0) + 1;
-          }
-        }
-        // Also count hand card IDs as rough tag proxies:
-        // The card defId often contains a tag hint, but we can't reliably parse it.
-        // We'll just use the modifiers data.
-      }
-    }
-
-    // If no modifier data, show hand size distribution instead
-    const allTags = Object.keys(TAG_COLORS);
-    const winData = allTags.map(t => winTags[t] || 0);
-    const loseData = allTags.map(t => loseTags[t] || 0);
-    const hasData = winData.some(v => v > 0) || loseData.some(v => v > 0);
-
-    if (!hasData) {
-      // Fallback: count hand cards per run outcome
-      const winCardCount: Record<string, number> = {};
-      const loseCardCount: Record<string, number> = {};
-      for (const r of runs) {
-        const target = r.won ? winCardCount : loseCardCount;
-        for (const level of r.levels) {
-          for (const cardId of level.handCardIds) {
-            target[cardId] = (target[cardId] || 0) + 1;
-          }
+    for (const level of allLevels) {
+      const bucket = level.passed ? winTags : loseTags;
+      for (const cardId of (level.handCardIds || [])) {
+        const tags = CARD_TAG_MAP.get(cardId) || [];
+        for (const tag of tags) {
+          bucket[tag] = (bucket[tag] || 0) + 1;
         }
       }
     }
 
-    return {
+    const allTags = [...new Set([...Object.keys(winTags), ...Object.keys(loseTags)])];
+    const winData = {
       labels: allTags,
+      datasets: [{
+        data: allTags.map(t => winTags[t] || 0),
+        backgroundColor: allTags.map(t => TAG_COLORS[t] || '#999'),
+      }],
+    };
+    const loseData = {
+      labels: allTags,
+      datasets: [{
+        data: allTags.map(t => loseTags[t] || 0),
+        backgroundColor: allTags.map(t => TAG_COLORS[t] || '#999'),
+      }],
+    };
+    return { winData, loseData };
+  }, [allLevels]);
+
+  // Chart 7: Map node type choices
+  const mapChoicesData = useMemo(() => {
+    const selectedCounts: Record<string, number> = {};
+    const availableCounts: Record<string, number> = {};
+    for (const r of runs) {
+      for (const mc of (r.mapChoices || [])) {
+        selectedCounts[mc.selectedNodeType] = (selectedCounts[mc.selectedNodeType] || 0) + 1;
+        for (const t of mc.availableNodeTypes) {
+          availableCounts[t] = (availableCounts[t] || 0) + 1;
+        }
+      }
+    }
+    const types = [...new Set([...Object.keys(selectedCounts), ...Object.keys(availableCounts)])].filter(t => t !== 'start');
+    return {
+      labels: types.map(t => t.charAt(0).toUpperCase() + t.slice(1)),
       datasets: [
-        {
-          label: 'Winning Hands',
-          data: winData,
-          backgroundColor: allTags.map(t => TAG_COLORS[t] || '#999'),
-        },
-        {
-          label: 'Losing Hands',
-          data: loseData,
-          backgroundColor: allTags.map(t => {
-            const c = TAG_COLORS[t] || '#999';
-            return c + '88'; // add transparency
-          }),
-        },
+        { label: 'Selected', data: types.map(t => selectedCounts[t] || 0), backgroundColor: '#22c55e' },
+        { label: 'Available (not selected)', data: types.map(t => (availableCounts[t] || 0) - (selectedCounts[t] || 0)), backgroundColor: '#d1d5db' },
       ],
     };
   }, [runs]);
 
-  // For pie chart, combine win tags into single dataset
-  const winPieData = useMemo(() => {
-    const tagCounts: Record<string, number> = {};
-    for (const r of runs) {
-      if (!r.won) continue;
-      for (const level of r.levels) {
-        if (level.modifiers) {
-          for (const mod of level.modifiers) {
-            tagCounts[mod.tag] = (tagCounts[mod.tag] || 0) + Math.abs(mod.value);
-          }
-        }
-      }
-    }
-    const allTags = Object.keys(TAG_COLORS);
-    return {
-      labels: allTags,
-      datasets: [{
-        data: allTags.map(t => tagCounts[t] || 0),
-        backgroundColor: allTags.map(t => TAG_COLORS[t]),
-      }],
-    };
-  }, [runs]);
+  // Hover card preview state
+  const [hoverCard, setHoverCard] = useState<{ id: string; x: number; y: number } | null>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const losePieData = useMemo(() => {
-    const tagCounts: Record<string, number> = {};
-    for (const r of runs) {
-      if (r.won) continue;
-      for (const level of r.levels) {
-        if (level.modifiers) {
-          for (const mod of level.modifiers) {
-            tagCounts[mod.tag] = (tagCounts[mod.tag] || 0) + Math.abs(mod.value);
-          }
-        }
-      }
-    }
-    const allTags = Object.keys(TAG_COLORS);
-    return {
-      labels: allTags,
-      datasets: [{
-        data: allTags.map(t => tagCounts[t] || 0),
-        backgroundColor: allTags.map(t => TAG_COLORS[t]),
-      }],
-    };
-  }, [runs]);
-
-  if (loading) {
-    return <div style={{ padding: 32, color: '#6b7280' }}>Loading analytics...</div>;
-  }
-
-  if (runs.length === 0) {
-    return (
-      <div style={{ padding: 32 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', marginBottom: 16 }}>Analytics</h2>
-        <div style={containerStyle}>
-          <p style={{ color: '#6b7280' }}>No run records found. Play some games to generate analytics data.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const horizontalBarOptions = {
-    indexAxis: 'y' as const,
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+  const showCardPreview = (cardId: string, event: React.MouseEvent) => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    const def = CARD_DEF_MAP.get(cardId);
+    if (!def) return;
+    setHoverCard({ id: cardId, x: event.clientX + 10, y: event.clientY - 100 });
   };
 
+  const hideCardPreview = () => {
+    hoverTimeoutRef.current = setTimeout(() => setHoverCard(null), 100);
+  };
+
+  // Helper to render a card chip with thumbnail + hover preview
+  const CardLabel = ({ cardId }: { cardId: string }) => {
+    const def = CARD_DEF_MAP.get(cardId);
+    const name = def?.name || cardId.replace(/-/g, ' ');
+    const tag = def?.tags[0];
+    const tagColor = tag ? TAG_COLORS[tag] : '#999';
+    const artSrc = def?.art || `/art/${cardId}.png`;
+
+    return (
+      <span
+        style={{
+          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+        }}
+        onMouseEnter={(e) => showCardPreview(cardId, e)}
+        onMouseLeave={hideCardPreview}
+      >
+        <img
+          src={artSrc}
+          alt=""
+          style={{
+            width: 20, height: 20, borderRadius: 3, objectFit: 'cover',
+            border: `1.5px solid ${tagColor}`, flexShrink: 0,
+          }}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+        <span style={{ borderBottom: `1px dotted ${tagColor}80` }}>{name}</span>
+      </span>
+    );
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>Loading analytics...</div>;
+  if (runs.length === 0) return <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>No run data yet. Play some games!</div>;
+
+  const barOpts = { responsive: true, plugins: { legend: { position: 'top' as const } } };
+  const horizBarOpts = { ...barOpts, indexAxis: 'y' as const };
+  const lineOpts = { responsive: true, plugins: { legend: { position: 'top' as const } }, scales: { y: { beginAtZero: true, max: 100 } } };
+  const pieOpts = { responsive: true, plugins: { legend: { position: 'right' as const, labels: { font: { size: 10 } } } } };
+
   return (
-    <div style={{ padding: 32, maxWidth: 1200 }}>
-      <h2 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', marginBottom: 24 }}>Analytics</h2>
+    <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
+      <h2 style={{ margin: '0 0 8px 0', fontSize: 22 }}>📊 Analytics</h2>
+      <p style={{ color: '#666', fontSize: 13, marginBottom: 20 }}>
+        Data from {runs.length} runs, {allLevels.length} levels played
+      </p>
 
       {/* Summary Stats */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-          {[
-            { label: 'Total Runs', value: stats.totalRuns, color: '#3b82f6' },
-            { label: 'Win Rate', value: `${stats.winRate}%`, color: '#22c55e' },
-            { label: 'Avg Score', value: stats.avgScore, color: '#f59e0b' },
-            { label: 'Avg Levels', value: stats.avgLevels, color: '#8b5cf6' },
-          ].map((item) => (
-            <div key={item.label} style={{
-              ...containerStyle,
-              marginBottom: 0,
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>{item.label}</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: item.color }}>{item.value}</div>
-            </div>
-          ))}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
+          <div style={statBox}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#1f2937' }}>{stats.totalRuns}</div>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>Total Runs</div>
+          </div>
+          <div style={statBox}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#22c55e' }}>{stats.winRate}%</div>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>Run Win Rate</div>
+          </div>
+          <div style={statBox}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#3b82f6' }}>{stats.totalLevels}</div>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>Levels Played</div>
+          </div>
+          <div style={statBox}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#22c55e' }}>{stats.levelPassRate}%</div>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>Level Pass Rate</div>
+          </div>
+          <div style={statBox}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#6366f1' }}>{stats.avgScore}</div>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>Avg Level Score</div>
+          </div>
+          <div style={statBox}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#d97706' }}>{stats.avgLevelsPerRun}</div>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>Avg Levels/Run</div>
+          </div>
         </div>
       )}
 
-      {/* Chart 1: Score Distribution */}
-      <div style={containerStyle}>
-        <div style={headerStyle}>Score Distribution</div>
-        <div style={{ height: 300 }}>
-          <Bar
-            data={scoreDistData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: {
-                x: { stacked: true },
-                y: { stacked: true },
-              },
-              plugins: {
-                legend: { position: 'top' },
-              },
+      {/* Charts in 2-column grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
+        <div style={containerStyle}>
+          <div style={headerStyle}>Level Score Distribution</div>
+          <Bar data={scoreDistData} options={{ ...barOpts, plugins: { ...barOpts.plugins, title: { display: true, text: 'Scores grouped by passed/failed levels' } } }} />
+        </div>
+
+        <div style={containerStyle}>
+          <div style={headerStyle}>Level Progress</div>
+          <Bar data={levelProgressData} options={{ ...barOpts, plugins: { ...barOpts.plugins, title: { display: true, text: 'How many times each level was passed vs failed' } } }} />
+        </div>
+
+        <div style={containerStyle}>
+          <div style={headerStyle}>Pass Rate by Level</div>
+          <Line data={winRateByLevelData} options={lineOpts} />
+        </div>
+
+        <div style={containerStyle}>
+          <div style={headerStyle}>Map Node Choices</div>
+          <Bar data={mapChoicesData} options={{ ...barOpts, plugins: { ...barOpts.plugins, title: { display: true, text: 'Selected vs available node types' } } }} />
+        </div>
+
+        <div style={containerStyle}>
+          <div style={headerStyle}>Most Picked Cards</div>
+          {mostSelectedData.labels.length > 0 ? (
+            <>
+              <Bar data={mostSelectedData} options={horizBarOpts} />
+              <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {(mostSelectedData.ids || mostSelectedData.labels).map((id, i) => {
+                  const cardId = typeof id === 'string' && id.includes(' ') ? id.replace(/ /g, '-') : id;
+                  return (
+                    <span key={i} style={{ fontSize: 11, background: '#eff6ff', padding: '2px 6px', borderRadius: 4 }}>
+                      <CardLabel cardId={cardId} /> ({mostSelectedData.datasets[0].data[i]})
+                    </span>
+                  );
+                })}
+              </div>
+            </>
+          ) : <div style={{ color: '#999', fontSize: 13, padding: 20 }}>No reward picks recorded yet</div>}
+        </div>
+
+        <div style={containerStyle}>
+          <div style={headerStyle}>Most Skipped Cards</div>
+          {mostSkippedData.labels.length > 0 ? (
+            <>
+              <Bar data={mostSkippedData} options={horizBarOpts} />
+              <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {(mostSkippedData.ids || mostSkippedData.labels).map((id, i) => {
+                  const cardId = typeof id === 'string' && id.includes(' ') ? id.replace(/ /g, '-') : id;
+                  return (
+                    <span key={i} style={{ fontSize: 11, background: '#fef3c7', padding: '2px 6px', borderRadius: 4 }}>
+                      <CardLabel cardId={cardId} /> ({mostSkippedData.datasets[0].data[i]})
+                    </span>
+                  );
+                })}
+              </div>
+            </>
+          ) : <div style={{ color: '#999', fontSize: 13, padding: 20 }}>No skipped cards recorded yet</div>}
+        </div>
+
+        <div style={containerStyle}>
+          <div style={headerStyle}>Tags in Passed Hands</div>
+          {Object.keys(handCompositionData.winData.datasets[0]?.data || {}).length > 0
+            ? <Pie data={handCompositionData.winData} options={pieOpts} />
+            : <div style={{ color: '#999', fontSize: 13, padding: 20 }}>No passed level data yet</div>
+          }
+        </div>
+
+        <div style={containerStyle}>
+          <div style={headerStyle}>Tags in Failed Hands</div>
+          {Object.keys(handCompositionData.loseData.datasets[0]?.data || {}).length > 0
+            ? <Pie data={handCompositionData.loseData} options={pieOpts} />
+            : <div style={{ color: '#999', fontSize: 13, padding: 20 }}>No failed level data yet</div>
+          }
+        </div>
+      </div>
+
+      {/* Floating card preview tooltip */}
+      {hoverCard && (() => {
+        const def = CARD_DEF_MAP.get(hoverCard.id);
+        if (!def) return null;
+        const top = Math.max(10, Math.min(hoverCard.y, window.innerHeight - 300));
+        const left = Math.min(hoverCard.x, window.innerWidth - 200);
+        return (
+          <div
+            style={{
+              position: 'fixed', top, left, zIndex: 1000,
+              pointerEvents: 'none',
+              filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))',
             }}
-          />
-        </div>
-      </div>
-
-      {/* Chart 2: Level Progress */}
-      <div style={containerStyle}>
-        <div style={headerStyle}>Level Progress</div>
-        <div style={{ height: 300 }}>
-          <Bar
-            data={levelProgressData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { legend: { display: false } },
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Charts 3 & 4 side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-        {/* Chart 3: Most Selected Cards */}
-        <div style={containerStyle}>
-          <div style={headerStyle}>Most Selected Cards (Top 20)</div>
-          <div style={{ height: 500 }}>
-            <Bar data={mostSelectedData} options={horizontalBarOptions} />
+          >
+            <CardPreviewMini card={def} width={180} />
           </div>
-        </div>
-
-        {/* Chart 4: Most Skipped Cards */}
-        <div style={containerStyle}>
-          <div style={headerStyle}>Most Skipped Cards (Top 20)</div>
-          <div style={{ height: 500 }}>
-            <Bar data={mostSkippedData} options={horizontalBarOptions} />
-          </div>
-        </div>
-      </div>
-
-      {/* Chart 5: Win Rate by Level */}
-      <div style={containerStyle}>
-        <div style={headerStyle}>Win Rate by Level</div>
-        <div style={{ height: 300 }}>
-          <Line
-            data={winRateByLevelData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: {
-                y: { min: 0, max: 100, title: { display: true, text: 'Win Rate (%)' } },
-              },
-              plugins: { legend: { display: false } },
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Chart 6: Hand Composition */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-        <div style={containerStyle}>
-          <div style={headerStyle}>Tag Distribution - Winning Hands</div>
-          <div style={{ height: 300, display: 'flex', justifyContent: 'center' }}>
-            <Pie
-              data={winPieData}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: { position: 'right', labels: { boxWidth: 12 } },
-                },
-              }}
-            />
-          </div>
-        </div>
-        <div style={containerStyle}>
-          <div style={headerStyle}>Tag Distribution - Losing Hands</div>
-          <div style={{ height: 300, display: 'flex', justifyContent: 'center' }}>
-            <Pie
-              data={losePieData}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: { position: 'right', labels: { boxWidth: 12 } },
-                },
-              }}
-            />
-          </div>
-        </div>
-      </div>
+        );
+      })()}
     </div>
   );
 }
