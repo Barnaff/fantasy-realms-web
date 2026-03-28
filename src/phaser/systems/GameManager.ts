@@ -52,6 +52,27 @@ export class GameManager {
     this.emit('phaseChanged');
   }
 
+  selectDraftOption(optionId: string) {
+    if (!this.state.run || !this.state.draftOptions) return;
+    const option = this.state.draftOptions.find(o => o.id === optionId);
+    if (!option) return;
+
+    // Add the 3 cards to pool
+    let pool = this.state.run.pool;
+    for (const cardId of option.cardIds) {
+      pool = addCardToPool(pool, cardId);
+    }
+
+    this.state = {
+      ...this.state,
+      phase: 'map',
+      run: { ...this.state.run, pool },
+      draftOptions: null,
+    };
+    this.emit('stateChanged');
+    this.emit('phaseChanged');
+  }
+
   resetToTitle() {
     this.state = createInitialGameState();
     this.merchantStock = null;

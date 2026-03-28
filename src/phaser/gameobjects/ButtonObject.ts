@@ -12,18 +12,13 @@ export interface ButtonOptions {
 
 /**
  * Reliable button for Phaser scenes.
- *
- * Uses a transparent Rectangle as the interactive target (not the Container itself).
- * This is far more reliable than Container.setInteractive() which has known issues
- * with hit areas when containers are nested, scaled, or when scene-level input exists.
- *
- * Fires onClick on pointerup (not pointerdown) to avoid conflicts with scene-level
- * pointerdown handlers that may stopPropagation or consume the event.
+ * Uses a Zone game object for hit detection (most reliable across all scale modes)
+ * and a Container for the visual elements.
  */
 export class ButtonObject extends Phaser.GameObjects.Container {
   private bg: Phaser.GameObjects.Graphics;
   private label: Phaser.GameObjects.Text;
-  private hitRect: Phaser.GameObjects.Rectangle;
+  private zone: Phaser.GameObjects.Zone;
   private btnWidth: number;
   private btnHeight: number;
   private clickCallback?: () => void;
@@ -69,15 +64,15 @@ export class ButtonObject extends Phaser.GameObjects.Container {
     }).setOrigin(0.5);
     this.add(this.label);
 
-    // --- Transparent hit rectangle (much more reliable than Container.setInteractive) ---
+    // --- Zone for input (scene-level, most reliable) ---
     const hitW = this.btnWidth + padding * 2;
     const hitH = this.btnHeight + padding * 2;
-    this.hitRect = scene.add.rectangle(0, 0, hitW, hitH, 0x000000, 0);
-    this.hitRect.setInteractive({ useHandCursor: true });
-    this.add(this.hitRect);
+    this.zone = scene.add.zone(x, y, hitW, hitH)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(9999);
 
-    // --- Pointer events on the hit rectangle ---
-    this.hitRect.on('pointerover', () => {
+    // --- Pointer events on zone ---
+    this.zone.on('pointerover', () => {
       if (!this.isEnabled) return;
       scene.tweens.killTweensOf(this);
       scene.tweens.add({
@@ -89,7 +84,7 @@ export class ButtonObject extends Phaser.GameObjects.Container {
       });
     });
 
-    this.hitRect.on('pointerout', () => {
+    this.zone.on('pointerout', () => {
       this.isPressed = false;
       if (!this.isEnabled) return;
       scene.tweens.killTweensOf(this);
@@ -102,7 +97,7 @@ export class ButtonObject extends Phaser.GameObjects.Container {
       });
     });
 
-    this.hitRect.on('pointerdown', () => {
+    this.zone.on('pointerdown', () => {
       if (!this.isEnabled) return;
       this.isPressed = true;
       scene.tweens.killTweensOf(this);
@@ -115,14 +110,10 @@ export class ButtonObject extends Phaser.GameObjects.Container {
       });
     });
 
-    this.hitRect.on('pointerup', () => {
+    this.zone.on('pointerup', () => {
       if (!this.isEnabled || !this.isPressed) return;
       this.isPressed = false;
-
-      // Fire callback
       this.clickCallback?.();
-
-      // Bounce back
       scene.tweens.killTweensOf(this);
       scene.tweens.add({
         targets: this,
@@ -144,15 +135,41 @@ export class ButtonObject extends Phaser.GameObjects.Container {
   setEnabled(enabled: boolean): void {
     this.isEnabled = enabled;
     if (enabled) {
-      this.hitRect.setInteractive({ useHandCursor: true });
+      this.zone.setInteractive({ useHandCursor: true });
       this.setAlpha(1);
     } else {
-      this.hitRect.disableInteractive();
+      this.zone.disableInteractive();
       this.setAlpha(0.5);
     }
   }
 
   setOnClick(callback: () => void): void {
     this.clickCallback = callback;
+  }
+
+  setVisible(value: boolean): this {
+    super.setVisible(value);
+    if (this.zone) {
+      this.zone.setActive(value);
+      if (value) {
+        this.zone.setInteractive({ useHandCursor: true });
+      } else {
+        this.zone.disableInteractive();
+      }
+    }
+    return this;
+  }
+
+  setDepth(value: number): this {
+    super.setDepth(value);
+    if (this.zone) this.zone.setDepth(value + 1);
+    return this;
+  }
+
+  destroy(fromScene?: boolean): void {
+    if (this.zone) {
+      this.zone.destroy();
+    }
+    super.destroy(fromScene);
   }
 }

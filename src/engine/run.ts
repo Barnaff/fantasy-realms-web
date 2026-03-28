@@ -1,6 +1,7 @@
-import type { GameState, Encounter } from '../types/game.ts';
+import type { GameState, Encounter, DraftOption } from '../types/game.ts';
+import { CARD_DEFS } from '../data/cards.ts';
 import { RELIC_DEF_MAP } from '../data/relics.ts';
-import { SeededRNG, randomSeed } from '../utils/random.ts';
+import { SeededRNG, randomSeed, generateId } from '../utils/random.ts';
 import { generateMap } from './map.ts';
 import { createStartingPool } from './pool.ts';
 import { createRiver, dealInitialHand } from './river.ts';
@@ -20,8 +21,63 @@ export function createInitialGameState(): GameState {
     lastScoreResult: null,
     pendingChoice: null,
     postEncounterReward: null,
+    draftOptions: null,
     actionLog: [],
   };
+}
+
+export function generateDraftOptions(rng: SeededRNG): DraftOption[] {
+  const commons = CARD_DEFS.filter(c => c.rarity === 'common');
+  const rares = CARD_DEFS.filter(c => c.rarity === 'rare');
+  const epics = CARD_DEFS.filter(c => c.rarity === 'epic');
+  const usedIds = new Set<string>();
+
+  function pickUnique(pool: typeof CARD_DEFS, count: number) {
+    const available = pool.filter(c => !usedIds.has(c.id));
+    const picks = rng.pick(available, Math.min(count, available.length));
+    for (const p of picks) usedIds.add(p.id);
+    return picks.map(c => c.id);
+  }
+
+  // 3 options with different card counts and rarity budgets:
+  // Option A: 3 cards — 1 epic + 1 rare + 1 common (quality)
+  // Option B: 4 cards — 1 rare + 3 commons (balanced)
+  // Option C: 5 cards — 5 commons (quantity)
+  // Randomize which slot gets which template
+  const templates = rng.shuffle([
+    () => {
+      const e = pickUnique(epics, 1);
+      const r = pickUnique(rares, 1);
+      const c = pickUnique(commons, 1);
+      return [...e, ...r, ...c];
+    },
+    () => {
+      // 50% chance for 1 rare + 3 common, 50% chance for 2 rare + 2 common
+      if (rng.next() < 0.5) {
+        const r = pickUnique(rares, 1);
+        const c = pickUnique(commons, 3);
+        return [...r, ...c];
+      } else {
+        const r = pickUnique(rares, 2);
+        const c = pickUnique(commons, 2);
+        return [...r, ...c];
+      }
+    },
+    () => {
+      // 5 cards — mostly common, small chance for 1 rare
+      if (rng.next() < 0.2) {
+        const r = pickUnique(rares, 1);
+        const c = pickUnique(commons, 4);
+        return [...r, ...c];
+      }
+      return pickUnique(commons, 5);
+    },
+  ]);
+
+  return templates.map(fn => ({
+    id: generateId(),
+    cardIds: fn(),
+  }));
 }
 
 export function startRun(seed?: number): GameState {
@@ -30,9 +86,10 @@ export function startRun(seed?: number): GameState {
 
   const pool = createStartingPool(rng);
   const map = generateMap(rng);
+  const draftOptions = generateDraftOptions(rng);
 
   return {
-    phase: 'map',
+    phase: 'draft_pick',
     run: {
       seed: actualSeed,
       pool,
@@ -54,6 +111,7 @@ export function startRun(seed?: number): GameState {
     lastScoreResult: null,
     pendingChoice: null,
     postEncounterReward: null,
+    draftOptions,
     actionLog: [],
   };
 }

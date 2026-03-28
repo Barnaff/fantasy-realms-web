@@ -2,8 +2,14 @@ import type { CardInstance, Tag } from './card.ts';
 import type { RelicInstance } from './relic.ts';
 import type { GameMap } from './map.ts';
 
+export interface DraftOption {
+  id: string;
+  cardIds: string[]; // 3 card def IDs
+}
+
 export type GamePhase =
   | 'title'
+  | 'draft_pick'
   | 'map'
   | 'encounter_start'
   | 'player_turn'
@@ -124,6 +130,7 @@ export interface GameState {
   lastScoreResult: ScoreResult | null;
   pendingChoice: PendingChoice | null;
   postEncounterReward: PostEncounterReward | null;
+  draftOptions: DraftOption[] | null;
   actionLog: GameEvent[];
 }
 

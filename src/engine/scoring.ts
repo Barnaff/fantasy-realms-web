@@ -40,6 +40,7 @@ export function resolveCard(instance: CardInstance): ResolvedCard {
     name: def.name,
     tags,
     baseValue,
+    rarity: def.rarity,
     scoringEffects,
     discardEffect,
     art: def.art,

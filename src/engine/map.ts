@@ -18,11 +18,10 @@ const DEFAULT_CONFIG: MapConfig = {
 function getNodeTypeWeights(layer: number, totalLayers: number): [MapNodeType, number][] {
   // Layer 0 is start (handled separately)
   // Last layer is boss
-  // Pre-boss layer: merchant or rest only
+  // Pre-boss layer: merchant only
   if (layer === totalLayers - 2) {
     return [
       ['merchant', 1],
-      ['rest', 1],
     ];
   }
 
@@ -31,12 +30,11 @@ function getNodeTypeWeights(layer: number, totalLayers: number): [MapNodeType, n
     return [['encounter', 1]];
   }
 
-  // Middle layers: mixed
+  // Middle layers: mixed (no rest)
   return [
-    ['encounter', 50],
-    ['event', 20],
-    ['merchant', 15],
-    ['rest', 15],
+    ['encounter', 55],
+    ['event', 25],
+    ['merchant', 20],
   ];
 }
 

@@ -6,6 +6,12 @@
       "runtimeExecutable": "C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe",
       "runtimeArgs": ["node_modules/vite/bin/vite.js", "--host"],
       "port": 5173
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--config", "vite.admin.config.ts", "--host"],
+      "port": 5174
     }
   ]
 }

@@ -93,9 +93,13 @@ export class TitleScene extends Phaser.Scene {
       color: COLORS.tag.Leader,
       fontSize: '18px',
       onClick: () => {
-        auth.clearSave();
-        gm.newGame();
-        this.scene.start('MapScene');
+        try {
+          auth.clearSave();
+          gm.newGame();
+          this.scene.start('DraftScene');
+        } catch (e) {
+          console.error('NEW GAME ERROR:', e);
+        }
       },
     });
 

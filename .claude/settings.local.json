@@ -50,7 +50,10 @@
       "Bash(where aws:*)",
       "Read(//c/Program Files/Amazon/AWSCLIV2/**)",
       "Read(//c/Users/kobic/repos/fantasy-realms-web/$LOCALAPPDATA/Programs/Amazon/AWSCLIV2/**)",
-      "Bash(npm list:*)"
+      "Bash(npm list:*)",
+      "Bash(npx tsx:*)",
+      "Bash(C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe node_modules/.bin/tsx scripts/seed-firestore.ts)",
+      "Bash(C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe node_modules/tsx/dist/cli.mjs scripts/seed-firestore.ts)"
     ]
   }
 }

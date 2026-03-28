@@ -5,29 +5,11 @@ import { CARD_DEFS } from '../data/cards.ts';
 import { RELIC_DEF_MAP } from '../data/relics.ts';
 import { SeededRNG, generateId } from '../utils/random.ts';
 
-export function createStartingPool(rng: SeededRNG): CardInstance[] {
-  // Pick ~25 cards from the full set for the starting pool
-  // Ensure at least 2 cards from each of several tags for variety
-  const selected: CardDef[] = [];
-  const usedIds = new Set<string>();
+export function createStartingPool(_rng: SeededRNG): CardInstance[] {
+  // All players start with the same deck: all cards with rarity 'starting'
+  const startingCards = CARD_DEFS.filter(c => c.rarity === 'starting');
 
-  // Ensure some diversity: pick 2 from each of several key tags
-  const starterTags: Tag[] = ['Beast', 'Fire', 'Weapon', 'Leader', 'Land', 'Wizard', 'Army'];
-  for (const tag of starterTags) {
-    const tagged = CARD_DEFS.filter(c => c.tags.includes(tag) && !usedIds.has(c.id));
-    const picks = rng.pick(tagged, 2);
-    for (const pick of picks) {
-      selected.push(pick);
-      usedIds.add(pick.id);
-    }
-  }
-
-  // Fill up to 25 with random remaining cards
-  const remaining = CARD_DEFS.filter(c => !usedIds.has(c.id));
-  const extras = rng.pick(remaining, 25 - selected.length);
-  selected.push(...extras);
-
-  return selected.map(def => ({
+  return startingCards.map(def => ({
     instanceId: generateId(),
     defId: def.id,
     modifiers: [],

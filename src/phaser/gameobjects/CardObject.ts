@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import type { ResolvedCard, Tag } from '../../types/card.ts';
+import type { ResolvedCard, Tag, CardRarity } from '../../types/card.ts';
+import { RARITY_COLORS } from '../../types/card.ts';
 import { CARD, FONTS, COLORS } from '../../config.ts';
 import { TAG_COLORS, TAG_ART_FALLBACK } from '../utils/Colors.ts';
 import { createRichEffectText, isPenaltyEffect } from '../utils/TextFormatter.ts';
@@ -187,7 +188,26 @@ export class CardObject extends Phaser.GameObjects.Container {
 
     this.add(this.blankedOverlay);
 
-    // --- 9. Glow ring (hidden by default) ---
+    // --- 9. Rarity gem at bottom center ---
+    if (card.rarity && card.rarity !== 'starting') {
+      const gemY = H / 2 - 8;
+      const gemRadius = 5;
+      const rarityHex = parseInt(RARITY_COLORS[card.rarity].replace('#', ''), 16);
+
+      const gem = scene.add.graphics();
+      // Outer glow
+      gem.fillStyle(rarityHex, 0.3);
+      gem.fillCircle(0, gemY, gemRadius + 3);
+      // Inner gem (diamond shape)
+      gem.fillStyle(rarityHex, 1);
+      gem.fillCircle(0, gemY, gemRadius);
+      // Highlight
+      gem.fillStyle(0xffffff, 0.5);
+      gem.fillCircle(-1.5, gemY - 1.5, gemRadius * 0.35);
+      this.add(gem);
+    }
+
+    // --- 10. Glow ring (hidden by default) ---
     this.glowRing = scene.add.graphics();
     this.glowRing.setVisible(false);
     this.add(this.glowRing);

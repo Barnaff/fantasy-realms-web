@@ -12,6 +12,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Dire Wolf',
     tags: ['Beast'],
     baseValue: 6,
+    rarity: 'starting',
     flavor: 'Its howl turns the bravest knights to trembling children.',
     scoringEffects: [
       { description: '+14 if any Leader or Wizard is present', effectId: 'bonusIfTagPresent', params: { tag: 'Leader', bonus: 14 } },
@@ -24,6 +25,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Phoenix',
     tags: ['Beast', 'Fire'],
     baseValue: 9,
+    rarity: 'common',
     flavor: 'From ash it rises, each rebirth more glorious than the last.',
     scoringEffects: [
       { description: '+30 if High Priestess is present', effectId: 'bonusIfCardPresent', params: { cardId: 'high-priestess', bonus: 30 } },
@@ -37,6 +39,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Great Elk',
     tags: ['Beast'],
     baseValue: 12,
+    rarity: 'starting',
     flavor: 'Lord of the ancient groves, crowned in moss and memory.',
     scoringEffects: [
       { description: '+28 if Cursed Swamp is present', effectId: 'bonusIfCardPresent', params: { cardId: 'cursed-swamp', bonus: 28 } },
@@ -49,6 +52,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Wyvern',
     tags: ['Beast'],
     baseValue: 30,
+    rarity: 'rare',
     flavor: 'A serpent of the sky, barbed and merciless.',
     scoringEffects: [
       { description: '-40 unless any Wizard is present', effectId: 'penaltyIfTagAbsent', params: { tag: 'Wizard', penalty: -40 } },
@@ -60,6 +64,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Shadow Panther',
     tags: ['Beast'],
     baseValue: 35,
+    rarity: 'epic',
     flavor: 'It moves between the dark places where even moonlight fears to go.',
     scoringEffects: [
       { description: 'Blanks all Armies', effectId: 'blankTag', params: { tag: 'Army' } },
@@ -81,6 +86,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Inferno',
     tags: ['Fire'],
     baseValue: 2,
+    rarity: 'starting',
     flavor: 'The flames speak in a tongue older than language.',
     scoringEffects: [
       { description: '+100 if Tome of Ages, Bell Tower (Fortress City), and any Wizard all present', effectId: 'bonusIfCardPresent', params: { cardId: 'tome-of-ages', bonus: 30 } },
@@ -94,6 +100,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Flame Arrow',
     tags: ['Fire'],
     baseValue: 4,
+    rarity: 'starting',
     flavor: 'A single burning arc that ends a siege.',
     scoringEffects: [
       { description: '+15 for each other Fire card in hand', effectId: 'bonusPerTag', params: { tag: 'Fire', bonus: 15 } },
@@ -106,6 +113,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Wildfire',
     tags: ['Fire'],
     baseValue: 40,
+    rarity: 'epic',
     flavor: 'It begins with a whisper. It ends with silence.',
     scoringEffects: [
       { description: 'Blanks all Beasts', effectId: 'blankTag', params: { tag: 'Beast' } },
@@ -122,6 +130,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Forge',
     tags: ['Fire'],
     baseValue: 9,
+    rarity: 'starting',
     flavor: 'Where iron screams and becomes something worth dying for.',
     scoringEffects: [
       { description: '+9 for each Weapon in hand', effectId: 'bonusPerTag', params: { tag: 'Weapon', bonus: 9 } },
@@ -135,6 +144,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Lava Flow',
     tags: ['Fire'],
     baseValue: 11,
+    rarity: 'starting',
     flavor: 'The mountain bleeds, and the world reshapes itself.',
     scoringEffects: [
       { description: '+30 if Thunderstorm is present', effectId: 'bonusIfCardPresent', params: { cardId: 'thunderstorm', bonus: 30 } },
@@ -156,6 +166,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Thunderstorm',
     tags: ['Weather'],
     baseValue: 8,
+    rarity: 'common',
     flavor: 'The sky cracks open and the gods speak in voltage.',
     scoringEffects: [
       { description: '+10 for each Flood in hand', effectId: 'bonusPerTag', params: { tag: 'Flood', bonus: 10 } },
@@ -168,6 +179,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Blizzard',
     tags: ['Weather'],
     baseValue: 30,
+    rarity: 'rare',
     flavor: 'The snow swallows the horizon whole.',
     scoringEffects: [
       { description: 'Blanks all Flood cards', effectId: 'blankTag', params: { tag: 'Flood' } },
@@ -183,6 +195,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Fog',
     tags: ['Weather'],
     baseValue: 4,
+    rarity: 'starting',
     flavor: 'Armies vanish. Borders dissolve. Only the lost remain.',
     scoringEffects: [
       { description: '+15 for each other Weather card in hand', effectId: 'bonusPerTag', params: { tag: 'Weather', bonus: 15 } },
@@ -195,6 +208,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Monsoon',
     tags: ['Weather'],
     baseValue: 13,
+    rarity: 'common',
     flavor: 'The rains arrive like an invading army, patient and relentless.',
     scoringEffects: [
       { description: '+40 if Thunderstorm and either Blizzard or Great Flood is present', effectId: 'bonusIfCardPresent', params: { cardId: 'thunderstorm', bonus: 20 } },
@@ -219,6 +233,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'War King',
     tags: ['Leader'],
     baseValue: 8,
+    rarity: 'starting',
     flavor: 'He conquered not for glory, but because he knew no other tongue.',
     scoringEffects: [
       { description: '+5 for each Army in hand', effectId: 'bonusPerTag', params: { tag: 'Army', bonus: 5 } },
@@ -232,6 +247,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Empress',
     tags: ['Leader'],
     baseValue: 6,
+    rarity: 'starting',
     flavor: 'She speaks softly, and the world leans in to listen.',
     scoringEffects: [
       { description: '+5 for each Army in hand', effectId: 'bonusPerTag', params: { tag: 'Army', bonus: 5 } },
@@ -245,6 +261,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Rebel Captain',
     tags: ['Leader'],
     baseValue: 2,
+    rarity: 'starting',
     flavor: 'Born in chains. Crowned in ashes.',
     scoringEffects: [
       { description: '+8 for each Army in hand', effectId: 'bonusPerTag', params: { tag: 'Army', bonus: 8 } },
@@ -258,6 +275,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'High Priestess',
     tags: ['Leader'],
     baseValue: 10,
+    rarity: 'starting',
     flavor: 'Her prayers bend the fabric of what is possible.',
     scoringEffects: [
       { description: '+10 for each Army in hand', effectId: 'bonusPerTag', params: { tag: 'Army', bonus: 10 } },
@@ -270,6 +288,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Warlord',
     tags: ['Leader'],
     baseValue: 4,
+    rarity: 'starting',
     flavor: 'He measures wealth in swords, not gold.',
     scoringEffects: [
       { description: '+10 for each Army in hand (represents adding their base strengths)', effectId: 'bonusPerTag', params: { tag: 'Army', bonus: 10 } },
@@ -292,6 +311,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Enchanted Blade',
     tags: ['Weapon'],
     baseValue: 7,
+    rarity: 'common',
     flavor: 'It hums with a need that is not quite hunger.',
     scoringEffects: [
       { description: '+10 if any Leader is present', effectId: 'bonusIfTagPresent', params: { tag: 'Leader', bonus: 10 } },
@@ -304,6 +324,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Siege Engine',
     tags: ['Weapon'],
     baseValue: 23,
+    rarity: 'rare',
     flavor: 'It takes a city apart, stone by patient stone.',
     scoringEffects: [
       { description: 'BLANKED unless any Flood is present', effectId: 'blankIfTagAbsent', params: { tag: 'Flood' } },
@@ -315,6 +336,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Warbow',
     tags: ['Weapon'],
     baseValue: 3,
+    rarity: 'starting',
     flavor: 'Draw. Breathe. Release. Forget.',
     scoringEffects: [
       { description: '+30 if Elven Archers, Warlord, or Beast Master is present', effectId: 'bonusIfCardPresent', params: { cardId: 'elven-archers', bonus: 30 } },
@@ -328,6 +350,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Cursed Spear',
     tags: ['Weapon'],
     baseValue: 1,
+    rarity: 'starting',
     flavor: 'Every kill feeds the hunger in the haft.',
     scoringEffects: [
       { description: '+25 if any Wizard is present', effectId: 'bonusIfTagPresent', params: { tag: 'Wizard', bonus: 25 } },
@@ -339,6 +362,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Shield Wall',
     tags: ['Weapon'],
     baseValue: 4,
+    rarity: 'starting',
     flavor: 'An iron horizon that holds the line between order and ruin.',
     scoringEffects: [
       { description: '+15 if any Leader is present', effectId: 'bonusIfTagPresent', params: { tag: 'Leader', bonus: 15 } },
@@ -360,6 +384,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Ancient Forest',
     tags: ['Land'],
     baseValue: 7,
+    rarity: 'starting',
     flavor: 'The trees remember what the histories forgot.',
     scoringEffects: [
       { description: '+12 for each Beast in hand', effectId: 'bonusPerTag', params: { tag: 'Beast', bonus: 12 } },
@@ -373,6 +398,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Fortress City',
     tags: ['Land'],
     baseValue: 8,
+    rarity: 'starting',
     flavor: 'Walls of adamant, gates of song.',
     scoringEffects: [
       { description: '+15 if any Wizard is present', effectId: 'bonusIfTagPresent', params: { tag: 'Wizard', bonus: 15 } },
@@ -385,6 +411,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Cursed Swamp',
     tags: ['Land'],
     baseValue: 18,
+    rarity: 'starting',
     flavor: 'The water is warm. The water is patient.',
     scoringEffects: [
       { description: '-3 for each Army in hand', effectId: 'penaltyPerTag', params: { tag: 'Army', penalty: -3 } },
@@ -397,6 +424,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Mountain Pass',
     tags: ['Land'],
     baseValue: 9,
+    rarity: 'starting',
     flavor: 'The only path between kingdoms, and the most dangerous.',
     scoringEffects: [
       { description: '+50 if both Fog (Smoke) and Wildfire are present', effectId: 'bonusIfCardPresent', params: { cardId: 'fog', bonus: 25 } },
@@ -410,6 +438,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Crystal Cavern',
     tags: ['Land'],
     baseValue: 6,
+    rarity: 'starting',
     flavor: 'Light fractures here into colors that have no name.',
     scoringEffects: [
       { description: '+25 if Skeleton Horde or Wyvern is present', effectId: 'bonusIfCardPresent', params: { cardId: 'skeleton-horde', bonus: 25 } },
@@ -430,6 +459,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Shapeshifter',
     tags: ['Wild'],
     baseValue: 0,
+    rarity: 'rare',
     flavor: 'It wears your face and remembers your name.',
     scoringEffects: [
       { description: 'Copies the tags of the highest base-value card (may take on Artifact, Leader, Wizard, Weapon, or Beast)', effectId: 'copyTagsOfHighest', params: {} },
@@ -441,6 +471,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Fae Trickster',
     tags: ['Wild'],
     baseValue: 0,
+    rarity: 'rare',
     flavor: 'Every deal is fair. Every deal is a trap.',
     scoringEffects: [
       { description: 'Copies the tags of the highest base-value card (may take on Army, Land, Weather, Flood, or Fire)', effectId: 'copyTagsOfHighest', params: {} },
@@ -452,6 +483,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Mimic',
     tags: ['Wild'],
     baseValue: 0,
+    rarity: 'rare',
     flavor: 'It looks like treasure until it looks like teeth.',
     scoringEffects: [
       { description: 'Copies the tags of the highest base-value card (duplicates name, suit, base strength, and penalty but not bonus)', effectId: 'copyTagsOfHighest', params: {} },
@@ -463,6 +495,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Wandering Spirit',
     tags: ['Wild'],
     baseValue: 5,
+    rarity: 'epic',
     flavor: 'It walks the roads it walked in life, looking for a home that burned.',
     scoringEffects: [
       { description: '+4 per unique tag in hand', effectId: 'bonusPerUniqueTag', params: { bonus: 4 } },
@@ -478,6 +511,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Chaos Sprite',
     tags: ['Wild'],
     baseValue: 2,
+    rarity: 'epic',
     flavor: 'Logic offends it. Order is its mortal enemy.',
     scoringEffects: [
       { description: '+50 if every card in hand is a different suit/tag', effectId: 'bonusPerUniqueTag', params: { bonus: 7 } },
@@ -498,6 +532,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Great Flood',
     tags: ['Flood'],
     baseValue: 32,
+    rarity: 'rare',
     flavor: 'The ocean remembers when all the land was sea.',
     scoringEffects: [
       { description: 'Blanks all Armies', effectId: 'blankTag', params: { tag: 'Army' } },
@@ -511,6 +546,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Tidal Wave',
     tags: ['Flood'],
     baseValue: 14,
+    rarity: 'starting',
     flavor: 'A wall of water taller than hope.',
     scoringEffects: [
       { description: '+15 if any Fire card is present (clears Fire/Flood penalties)', effectId: 'bonusIfTagPresent', params: { tag: 'Fire', bonus: 8 } },
@@ -523,6 +559,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'River Delta',
     tags: ['Flood'],
     baseValue: 1,
+    rarity: 'starting',
     flavor: 'Where the water slows and the soil remembers fertility.',
     scoringEffects: [
       { description: '+15 for each other Flood in hand', effectId: 'bonusPerTag', params: { tag: 'Flood', bonus: 15 } },
@@ -534,6 +571,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Frozen Lake',
     tags: ['Flood'],
     baseValue: 4,
+    rarity: 'starting',
     flavor: 'Beautiful, treacherous, patient.',
     scoringEffects: [
       { description: '+15 for each other Flood in hand', effectId: 'bonusPerTag', params: { tag: 'Flood', bonus: 15 } },
@@ -556,6 +594,7 @@ export const CARD_DEFS: CardDef[] = [
     name: "Knight's Battalion",
     tags: ['Army'],
     baseValue: 20,
+    rarity: 'common',
     flavor: 'Steel and discipline, moving as one.',
     scoringEffects: [
       { description: '-8 unless any Leader is present', effectId: 'penaltyIfTagAbsent', params: { tag: 'Leader', penalty: -8 } },
@@ -567,6 +606,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Skeleton Horde',
     tags: ['Army'],
     baseValue: 15,
+    rarity: 'common',
     flavor: 'They march without drums, without banners, without end.',
     scoringEffects: [
       { description: '-2 for each other Army in hand', effectId: 'penaltyPerTag', params: { tag: 'Army', penalty: -2 } },
@@ -578,6 +618,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Mercenary Band',
     tags: ['Army'],
     baseValue: 17,
+    rarity: 'common',
     flavor: 'Loyalty bought with gold is loyalty you can count.',
     scoringEffects: [
       { description: '-2 for each Land in hand', effectId: 'penaltyPerTag', params: { tag: 'Land', penalty: -2 } },
@@ -589,6 +630,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Siege Army',
     tags: ['Army'],
     baseValue: 10,
+    rarity: 'starting',
     flavor: 'They do not assault the walls. They simply wait.',
     scoringEffects: [
       { description: '+5 if no Weather card is present', effectId: 'bonusIfTagAbsent', params: { tag: 'Weather', bonus: 5 } },
@@ -600,6 +642,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Ranger Scouts',
     tags: ['Army'],
     baseValue: 5,
+    rarity: 'starting',
     flavor: 'They read the land the way scholars read books.',
     scoringEffects: [
       { description: '+10 for each Land card in hand', effectId: 'bonusPerTag', params: { tag: 'Land', bonus: 10 } },
@@ -620,6 +663,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Crown of Command',
     tags: ['Artifact'],
     baseValue: 4,
+    rarity: 'rare',
     flavor: 'Heavy lies the head, heavier lies the crown.',
     scoringEffects: [
       { description: '+15 if any Leader is present', effectId: 'bonusIfTagPresent', params: { tag: 'Leader', bonus: 15 } },
@@ -633,6 +677,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Orb of Prophecy',
     tags: ['Artifact'],
     baseValue: 5,
+    rarity: 'rare',
     flavor: 'It shows all futures. Mercy is not among them.',
     scoringEffects: [
       { description: '+10 for a 3-card value run, +30 for 4, +60 for 5, +100 for 6, +150 for 7 (approximated as per-unique-tag)', effectId: 'bonusPerUniqueTag', params: { bonus: 12 } },
@@ -644,6 +689,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Amulet of Binding',
     tags: ['Artifact'],
     baseValue: 1,
+    rarity: 'common',
     flavor: 'It holds things together that should never have been joined.',
     scoringEffects: [
       { description: '+20 flat bonus — clears all penalties (Protection Rune equivalent)', effectId: 'flatBonus', params: { bonus: 20 } },
@@ -656,6 +702,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Tome of Ages',
     tags: ['Artifact'],
     baseValue: 3,
+    rarity: 'common',
     flavor: 'Every page is blank until you are wise enough to read it.',
     scoringEffects: [
       { description: '+5 per unique tag in hand (Book of Changes equivalent — suit diversity)', effectId: 'bonusPerUniqueTag', params: { bonus: 5 } },
@@ -677,6 +724,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Archmage',
     tags: ['Wizard'],
     baseValue: 25,
+    rarity: 'rare',
     flavor: 'He unravels the universe and knits it back, slightly different.',
     scoringEffects: [
       { description: '-10 for each Leader in hand', effectId: 'penaltyPerTag', params: { tag: 'Leader', penalty: -10 } },
@@ -689,6 +737,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Necromancer',
     tags: ['Wizard', 'Undead'],
     baseValue: 3,
+    rarity: 'rare',
     flavor: 'Death is not an ending. It is a resource.',
     scoringEffects: [
       { description: '+15 flat bonus (represents taking a card from discard as 8th card)', effectId: 'flatBonus', params: { bonus: 15 } },
@@ -704,6 +753,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Elementalist',
     tags: ['Wizard'],
     baseValue: 5,
+    rarity: 'common',
     flavor: 'She speaks to stone and storm alike, and both answer.',
     scoringEffects: [
       { description: '+5 for each Land in hand', effectId: 'bonusPerTag', params: { tag: 'Land', bonus: 5 } },
@@ -718,6 +768,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Illusionist',
     tags: ['Wizard'],
     baseValue: 7,
+    rarity: 'common',
     flavor: 'Nothing you see is real. Everything you feel is.',
     scoringEffects: [
       { description: '+10 if 3 cards share a tag, +40 if 4, +100 if 5 (Collector equivalent — approximated)', effectId: 'bonusPerUniqueTag', params: { bonus: 8 } },
@@ -729,6 +780,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Hedge Witch',
     tags: ['Wizard'],
     baseValue: 9,
+    rarity: 'common',
     flavor: 'She knows the old ways, the ones the towers forgot.',
     scoringEffects: [
       { description: '+9 for each Beast in hand', effectId: 'bonusPerTag', params: { tag: 'Beast', bonus: 9 } },
@@ -747,6 +799,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Lich Lord',
     tags: ['Undead'],
     baseValue: 28,
+    rarity: 'epic',
     flavor: 'He traded his heartbeat for eternity and considers it a bargain.',
     scoringEffects: [
       { description: '+5 for each other Undead in hand', effectId: 'bonusPerTag', params: { tag: 'Undead', bonus: 5 } },
@@ -759,6 +812,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Wraith',
     tags: ['Undead'],
     baseValue: 4,
+    rarity: 'common',
     flavor: 'Cold fingers on your throat in the dark of three AM.',
     scoringEffects: [
       { description: '+15 for each other Undead in hand', effectId: 'bonusPerTag', params: { tag: 'Undead', bonus: 15 } },
@@ -770,6 +824,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Bone Dragon',
     tags: ['Undead', 'Beast'],
     baseValue: 35,
+    rarity: 'epic',
     flavor: 'It has no fire. It has no mercy. It needs neither.',
     scoringEffects: [
       { description: 'Blanks all Armies', effectId: 'blankTag', params: { tag: 'Army' } },
@@ -783,6 +838,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Ghoul Pack',
     tags: ['Undead'],
     baseValue: 7,
+    rarity: 'common',
     flavor: 'They hunt what the graveyards cannot hold.',
     scoringEffects: [
       { description: '+6 for each other Undead in hand', effectId: 'bonusPerTag', params: { tag: 'Undead', bonus: 6 } },
@@ -795,6 +851,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Revenant Knight',
     tags: ['Undead'],
     baseValue: 13,
+    rarity: 'common',
     flavor: 'Sworn oaths do not expire with the body.',
     scoringEffects: [
       { description: '+5 for each other Undead in hand', effectId: 'bonusPerTag', params: { tag: 'Undead', bonus: 5 } },
@@ -812,6 +869,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Storm Dragon',
     tags: ['Beast'],
     baseValue: 22,
+    rarity: 'rare',
     flavor: 'Where it flies, the sky weeps lightning.',
     scoringEffects: [
       { description: '-30 unless any Wizard is present', effectId: 'penaltyIfTagAbsent', params: { tag: 'Wizard', penalty: -30 } },
@@ -823,6 +881,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Holy Relic',
     tags: ['Artifact'],
     baseValue: 2,
+    rarity: 'common',
     flavor: 'It burns the wicked and warms the just.',
     scoringEffects: [
       { description: '+50 if every active card is a different suit', effectId: 'bonusPerUniqueTag', params: { bonus: 7 } },
@@ -834,6 +893,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Volcanic Island',
     tags: ['Land'],
     baseValue: 4,
+    rarity: 'common',
     flavor: 'Paradise built on a promise the earth might break.',
     scoringEffects: [
       { description: '+15 for each other Land in hand', effectId: 'bonusPerTag', params: { tag: 'Land', bonus: 15 } },
@@ -846,6 +906,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'War Elephant',
     tags: ['Army'],
     baseValue: 35,
+    rarity: 'epic',
     flavor: 'A living siege tower that never forgets a battlefield.',
     scoringEffects: [
       { description: 'BLANKED unless any Leader is present', effectId: 'blankIfTagAbsent', params: { tag: 'Leader' } },
@@ -858,6 +919,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Blood Moon',
     tags: ['Weather'],
     baseValue: 27,
+    rarity: 'epic',
     flavor: 'Under its light, the dead grow restless and the living grow afraid.',
     scoringEffects: [
       { description: 'BLANKED unless any Fire is present', effectId: 'blankIfTagAbsent', params: { tag: 'Fire' } },
@@ -869,6 +931,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Dryad Grove',
     tags: ['Land'],
     baseValue: 2,
+    rarity: 'common',
     flavor: 'The trees have faces if you know where to look.',
     scoringEffects: [
       { description: '+50 if every active card in hand is a different suit', effectId: 'bonusPerUniqueTag', params: { bonus: 7 } },
@@ -880,6 +943,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Fire Elemental',
     tags: ['Fire'],
     baseValue: 4,
+    rarity: 'common',
     flavor: 'It dances without music. It consumes without hunger.',
     scoringEffects: [
       { description: '+15 for each other Fire card in hand', effectId: 'bonusPerTag', params: { tag: 'Fire', bonus: 15 } },
@@ -891,6 +955,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Elven Archers',
     tags: ['Army'],
     baseValue: 10,
+    rarity: 'common',
     flavor: 'Their arrows fly in silence and land in sorrow.',
     scoringEffects: [
       { description: '+5 if no Weather card in hand', effectId: 'bonusIfTagAbsent', params: { tag: 'Weather', bonus: 5 } },
@@ -902,6 +967,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Sunken Temple',
     tags: ['Land', 'Flood'],
     baseValue: 1,
+    rarity: 'common',
     flavor: 'The faithful still pray there, their voices a chorus of bubbles.',
     scoringEffects: [
       { description: 'Adds bonus equal to base strength of any Weapon, Flood, Fire, Land, or Weather (approximated as flat)', effectId: 'bonusPerTag', params: { tag: 'Weapon', bonus: 5 } },
@@ -917,6 +983,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Plague Wind',
     tags: ['Weather'],
     baseValue: 22,
+    rarity: 'rare',
     flavor: 'It carries the scent of endings on every gust.',
     scoringEffects: [
       { description: 'Blanks all Beast cards', effectId: 'blankTag', params: { tag: 'Beast' } },
@@ -930,6 +997,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Enchanted Armor',
     tags: ['Weapon'],
     baseValue: 14,
+    rarity: 'common',
     flavor: 'Forged by spellfire, cooled in moonlight.',
     scoringEffects: [
       { description: '+10 if any Leader is present', effectId: 'bonusIfTagPresent', params: { tag: 'Leader', bonus: 10 } },
@@ -943,6 +1011,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'World Tree',
     tags: ['Land'],
     baseValue: 2,
+    rarity: 'epic',
     flavor: 'Its roots drink from the past. Its branches hold the future.',
     scoringEffects: [
       { description: '+50 if every active card in hand has a different primary suit', effectId: 'bonusPerUniqueTag', params: { bonus: 7 } },
@@ -954,6 +1023,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Doom Blade',
     tags: ['Weapon', 'Undead'],
     baseValue: 19,
+    rarity: 'rare',
     flavor: 'Each cut opens a wound in the world itself.',
     scoringEffects: [
       { description: 'BLANKED unless any Undead is present', effectId: 'blankIfTagAbsent', params: { tag: 'Undead' } },
@@ -966,6 +1036,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Beast Master',
     tags: ['Leader'],
     baseValue: 9,
+    rarity: 'common',
     flavor: 'He speaks the growling language of fang and claw.',
     scoringEffects: [
       { description: '+9 for each Beast in hand', effectId: 'bonusPerTag', params: { tag: 'Beast', bonus: 9 } },
@@ -978,6 +1049,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Battle Hymn',
     tags: ['Artifact'],
     baseValue: 3,
+    rarity: 'common',
     flavor: 'The song is older than the war. The war is older than memory.',
     scoringEffects: [
       { description: '+8 for each Army in hand', effectId: 'bonusPerTag', params: { tag: 'Army', bonus: 8 } },
@@ -992,6 +1064,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Whirlpool',
     tags: ['Flood'],
     baseValue: 18,
+    rarity: 'common',
     flavor: 'The sea opens its mouth and swallows everything proud.',
     scoringEffects: [
       { description: '-3 for each Army in hand', effectId: 'penaltyPerTag', params: { tag: 'Army', penalty: -3 } },
@@ -1004,6 +1077,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Eternal Flame',
     tags: ['Fire'],
     baseValue: 20,
+    rarity: 'rare',
     flavor: 'It has burned since before the first dawn and will burn after the last.',
     scoringEffects: [
       { description: 'BLANKED if any Flood card is present', effectId: 'blankIfTagPresent', params: { tag: 'Flood' } },
@@ -1016,6 +1090,7 @@ export const CARD_DEFS: CardDef[] = [
     name: 'Soul Gem',
     tags: ['Artifact'],
     baseValue: 7,
+    rarity: 'epic',
     flavor: 'Inside, a thousand voices whisper of what they lost.',
     scoringEffects: [
       { description: '+8 for each Undead in hand', effectId: 'bonusPerTag', params: { tag: 'Undead', bonus: 8 } },

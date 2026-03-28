@@ -44,11 +44,28 @@ export interface DiscardEffect {
   params: Record<string, unknown>;
 }
 
+export type CardRarity = 'starting' | 'common' | 'rare' | 'epic';
+
+export const RARITY_COLORS: Record<CardRarity, string> = {
+  starting: '#9ca3af', // gray
+  common: '#22c55e',   // green
+  rare: '#3b82f6',     // blue
+  epic: '#f59e0b',     // gold
+};
+
+export const RARITY_LABELS: Record<CardRarity, string> = {
+  starting: 'Starting',
+  common: 'Common',
+  rare: 'Rare',
+  epic: 'Epic',
+};
+
 export interface CardDef {
   id: string;
   name: string;
   tags: Tag[];
   baseValue: number;
+  rarity: CardRarity;
   art?: string;
   flavor?: string;
   scoringEffects: ScoringEffect[];
@@ -72,6 +89,7 @@ export interface ResolvedCard {
   name: string;
   tags: Tag[];
   baseValue: number;
+  rarity: CardRarity;
   scoringEffects: ScoringEffect[];
   discardEffect: DiscardEffect | null;
   art?: string;

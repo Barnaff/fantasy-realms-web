@@ -477,6 +477,20 @@ export class EncounterScene extends Phaser.Scene {
       color: COLORS.tag.Leader,
       onClick: () => this.onFinalize(),
     });
+
+    // View Deck button
+    const deckLabel = this.add.text(this.width - 14, this.scorePanelY + 36, '📋 Deck', {
+      fontFamily: FONTS.body,
+      fontSize: '10px',
+      color: '#8a7a5c',
+      resolution: 2,
+    }).setOrigin(1, 0);
+    const deckZone = this.add.zone(deckLabel.x - deckLabel.width / 2, deckLabel.y + 6, deckLabel.width + 16, 18)
+      .setInteractive({ useHandCursor: true });
+    deckZone.on('pointerdown', () => {
+      this.scene.pause();
+      this.scene.launch('PoolViewerScene', { returnScene: 'EncounterScene' });
+    });
   }
 
   private refreshScorePanel(): void {

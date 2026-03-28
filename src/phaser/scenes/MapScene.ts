@@ -140,10 +140,11 @@ export class MapScene extends Phaser.Scene {
 
         // ── Current node indicator ──
         if (isCurrent) {
-          // Bright pulsing ring
+          // Bright pulsing ring — drawn at origin, positioned at (x,y) so scale works from center
           const currentRing = this.add.graphics();
+          currentRing.setPosition(x, y);
           currentRing.lineStyle(3, COLORS.tag.Leader, 0.9);
-          currentRing.strokeCircle(x, y, radius + 6);
+          currentRing.strokeCircle(0, 0, radius + 6);
           this.tweens.add({
             targets: currentRing,
             alpha: { from: 0.5, to: 1 },
@@ -228,6 +229,20 @@ export class MapScene extends Phaser.Scene {
         }
       }
     }
+
+    // ── View Deck button ──
+    const deckBtn = this.add.text(12, height - 24, '📋 View Deck', {
+      fontFamily: FONTS.body,
+      fontSize: '12px',
+      color: '#6b5c4e',
+      resolution: 2,
+    }).setInteractive({ useHandCursor: true });
+    const deckZone = this.add.zone(deckBtn.x + deckBtn.width / 2, deckBtn.y + 6, deckBtn.width + 16, 24)
+      .setInteractive({ useHandCursor: true });
+    deckZone.on('pointerdown', () => {
+      this.scene.pause();
+      this.scene.launch('PoolViewerScene', { returnScene: 'MapScene' });
+    });
 
     // ── Forfeit button ──
     const forfeitBtn = this.add.text(width - 12, 12, '✕', {

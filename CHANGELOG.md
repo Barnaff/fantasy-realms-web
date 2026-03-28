@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.8.0 — 2026-03-28
+
+### New Features
+- Card rarity system: Starting (gray), Common (green gem), Rare (blue gem), Epic (gold gem)
+- Starting deck: all players begin with the same 25 Starting-rarity cards
+- Draft pick screen: choose 1 of 3 options to add bonus cards before the run begins
+- Draft options use rarity budget: 3 cards (1 epic+1 rare+1 common), 4 cards (balanced), 5 cards (mostly common)
+- Pool viewer: "📋 View Deck" accessible from map and encounter screens
+- Pool viewer filters: tag multi-select, rarity filter, card count, scrollable grid with hover preview
+- Admin dashboard: hand simulator with visual card previews and full score breakdown
+- Admin dashboard: custom effect editor with per-type param inputs (tag dropdowns, number fields, card ID selectors)
+- Admin dashboard: auto-generated card text with custom override option and JSON preview
+- Admin dashboard: card image upload to Firebase Storage
+- Admin dashboard: multi-select tag filter and rarity filter on cards page
+- Admin dashboard: power range filter and effect type filter (bonus/penalty/blank/none)
+- Admin dashboard: Firestore game data loader with localStorage cache fallback
+- Admin dashboard: seed script to upload all game data to Firestore
+
+### Improvements
+- Rarity gem shown on cards in Phaser (bottom center circle with glow) and admin previews
+- Card effects shown as text on admin card grid (replaces "X effects" count)
+- Button system rewritten to use Zone-based input (fixes buttons not responding)
+- Deck shuffled before each encounter for randomized draws
+- Rest encounters removed from map (Encounter 55%, Event 25%, Merchant 20%)
+- Current node indicator ring scales correctly from center (fixed origin issue)
+- Admin card editor shows rarity selector with colored buttons
+
+### Fixes
+- "New Adventure" button now works (was broken by `rng.nextFloat()` — should be `rng.next()`)
+- Duplicate `addCardToPool` import removed from GameManager
+- Draft scene button uses correct ButtonObject constructor signature
+
 ## 0.7.0 — 2026-03-28
 
 ### New Features

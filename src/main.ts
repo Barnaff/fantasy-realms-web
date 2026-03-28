@@ -10,6 +10,8 @@ import { MerchantScene } from './phaser/scenes/MerchantScene.ts';
 import { EventScene } from './phaser/scenes/EventScene.ts';
 import { RestScene } from './phaser/scenes/RestScene.ts';
 import { GameOverScene } from './phaser/scenes/GameOverScene.ts';
+import { DraftScene } from './phaser/scenes/DraftScene.ts';
+import { PoolViewerScene } from './phaser/scenes/PoolViewerScene.ts';
 import { COLORS } from './config.ts';
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -23,6 +25,7 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: [
     BootScene,
     TitleScene,
+    DraftScene,
     MapScene,
     EncounterScene,
     BossIntroScene,
@@ -32,6 +35,7 @@ const config: Phaser.Types.Core.GameConfig = {
     EventScene,
     RestScene,
     GameOverScene,
+    PoolViewerScene,
   ],
   input: {
     activePointers: 2,
