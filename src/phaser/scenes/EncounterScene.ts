@@ -65,7 +65,6 @@ export class EncounterScene extends Phaser.Scene {
   private hoveredHandIndex = -1;
   private draggingCard: CardObject | null = null;
   private dragPreviewIndex = -1; // where the dragged card would land
-  private dragStartX = 0;
   private dragStartY = 0;
   private dragCardIndex = -1;
   private handPositions: { x: number; y: number; rotation: number }[] = [];
@@ -554,7 +553,6 @@ export class EncounterScene extends Phaser.Scene {
     // ── All pointer handling at scene level (no Phaser drag system) ──
 
     let pointerDownIdx = -1;
-    let pointerDownTime = 0;
     const DRAG_THRESHOLD = 8; // px before we start dragging
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -564,7 +562,6 @@ export class EncounterScene extends Phaser.Scene {
       const idx = this.getHandCardAtPointer(pointer.x, pointer.y);
       if (idx >= 0) {
         pointerDownIdx = idx;
-        pointerDownTime = this.time.now;
         return;
       }
       pointerDownIdx = -1;
@@ -614,7 +611,7 @@ export class EncounterScene extends Phaser.Scene {
       this.setHoveredRiverIndex(riverIdx);
     });
 
-    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+    this.input.on('pointerup', (_pointer: Phaser.Input.Pointer) => {
       if (this.draggingCard) {
         this.onHandDragEnd(this.draggingCard);
       }
@@ -944,7 +941,6 @@ export class EncounterScene extends Phaser.Scene {
 
     const idx = card.getData('handIndex') as number;
     const pos = this.handPositions[idx];
-    this.dragStartX = pos?.x ?? card.x;
     this.dragStartY = pos?.y ?? card.y;
     this.dragCardIndex = idx;
     this.dragPreviewIndex = idx;

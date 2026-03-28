@@ -1,4 +1,4 @@
-import type { CardDef, CardInstance, Tag } from '../types/card.ts';
+import type { CardInstance } from '../types/card.ts';
 import type { PostEncounterReward } from '../types/game.ts';
 import type { RelicInstance } from '../types/relic.ts';
 import { CARD_DEFS } from '../data/cards.ts';

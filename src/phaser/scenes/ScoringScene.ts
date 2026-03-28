@@ -4,7 +4,6 @@ import { GameManager } from '../systems/GameManager.ts';
 import { CardFactory } from '../systems/CardFactory.ts';
 import { resolveCard } from '../../engine/scoring.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
-import type { ScoreBreakdownEntry } from '../../types/game.ts';
 
 export class ScoringScene extends Phaser.Scene {
   constructor() {
@@ -100,7 +99,7 @@ export class ScoringScene extends Phaser.Scene {
         colY += 18;
 
         // Compact breakdown lines
-        const lineW = cardW - 4;
+        // const lineW = cardW - 4;
 
         // Base
         const baseT = this.add.text(colX, colY, `Base: ${entry.baseValue}`, {
@@ -144,7 +143,7 @@ export class ScoringScene extends Phaser.Scene {
     }
 
     // Content height = cards + breakdown
-    const maxColH = curY + cardH + 120; // estimate max height
+    // const maxColH = curY + cardH + 120;
 
     // ── Relic bonuses ──
     let bottomY = curY + cardH + 80;

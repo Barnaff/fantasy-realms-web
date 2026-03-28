@@ -207,7 +207,7 @@ export class TitleScene extends Phaser.Scene {
     const contentX = panelX + 16;
     const contentW = panelW - 32;
     let cy = panelY + 48;
-    const maxY = panelY + panelH - 16;
+    // const maxY = panelY + panelH - 16;
 
     // Mask for scrolling
     const maskShape = this.add.graphics();

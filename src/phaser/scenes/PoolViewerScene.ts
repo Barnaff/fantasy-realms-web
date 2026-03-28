@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS, CARD } from '../../config.ts';
 import { CARD_DEF_MAP } from '../../data/cards.ts';
-import { ALL_TAGS, RARITY_COLORS, RARITY_LABELS } from '../../types/card.ts';
+import { ALL_TAGS, RARITY_COLORS } from '../../types/card.ts';
 import type { CardRarity, Tag } from '../../types/card.ts';
 import { GameManager } from '../systems/GameManager.ts';
 import { CardObject } from '../gameobjects/CardObject.ts';

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { ResolvedCard, Tag, CardRarity } from '../../types/card.ts';
+import type { ResolvedCard, Tag } from '../../types/card.ts';
 import { RARITY_COLORS } from '../../types/card.ts';
 import { CARD, FONTS, COLORS } from '../../config.ts';
 import { TAG_COLORS, TAG_ART_FALLBACK } from '../utils/Colors.ts';

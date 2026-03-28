@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS, CARD } from '../../config.ts';
 import { CARD_DEF_MAP } from '../../data/cards.ts';
-import { RARITY_COLORS, RARITY_LABELS } from '../../types/card.ts';
+import { RARITY_LABELS } from '../../types/card.ts';
 import { GameManager } from '../systems/GameManager.ts';
 import { CardObject } from '../gameobjects/CardObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
@@ -58,8 +58,7 @@ export class DraftScene extends Phaser.Scene {
     const cardGap = cardW + 8;
     const rowH = cardH + 40;
     const startY = 75;
-    const contentH = options.length * rowH + 50;
-    const needsScroll = contentH > height - 60;
+    // const contentH = options.length * rowH + 50;
 
     for (let oi = 0; oi < options.length; oi++) {
       const option = options[oi];
