@@ -12,7 +12,7 @@ import './admin.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/admin">
       <Routes>
         <Route path="/" element={<App />}>
           <Route index element={<Navigate to="/cards" replace />} />
