@@ -7,6 +7,7 @@ import { CardObject } from '../gameobjects/CardObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 import { LayoutHelper } from '../systems/LayoutHelper.ts';
 import { resolveCard } from '../../engine/scoring.ts';
+import { createKeywordTooltips } from '../utils/KeywordTooltips.ts';
 
 export class DraftScene extends Phaser.Scene {
   private selectedId: string | null = null;
@@ -14,6 +15,8 @@ export class DraftScene extends Phaser.Scene {
   private selectBtn: ButtonObject | null = null;
   private cardObjects: { card: CardObject; x: number; y: number; scale: number }[] = [];
   private hoveredCard: CardObject | null = null;
+  private hoverShadow: Phaser.GameObjects.Graphics | null = null;
+  private keywordTooltips: Phaser.GameObjects.Container | null = null;
   private hoverScale = 1.8;
   private baseCardScale = 0.85;
 
@@ -179,21 +182,7 @@ export class DraftScene extends Phaser.Scene {
     }
 
     if (!found) {
-      // Un-hover current
-      if (this.hoveredCard) {
-        const entry = this.cardObjects.find(e => e.card === this.hoveredCard);
-        if (entry) {
-          this.tweens.killTweensOf(this.hoveredCard);
-          this.tweens.add({
-            targets: this.hoveredCard,
-            x: entry.x, y: entry.y,
-            scaleX: this.baseCardScale, scaleY: this.baseCardScale,
-            duration: 120, ease: 'Quad.easeOut',
-          });
-          this.hoveredCard.setDepth(0);
-        }
-        this.hoveredCard = null;
-      }
+      this.clearHover();
       return;
     }
 
@@ -201,19 +190,7 @@ export class DraftScene extends Phaser.Scene {
     if (this.hoveredCard === found.card) return;
 
     // Un-hover old
-    if (this.hoveredCard) {
-      const oldEntry = this.cardObjects.find(e => e.card === this.hoveredCard);
-      if (oldEntry) {
-        this.tweens.killTweensOf(this.hoveredCard);
-        this.tweens.add({
-          targets: this.hoveredCard,
-          x: oldEntry.x, y: oldEntry.y,
-          scaleX: this.baseCardScale, scaleY: this.baseCardScale,
-          duration: 120, ease: 'Quad.easeOut',
-        });
-        this.hoveredCard.setDepth(0);
-      }
-    }
+    this.clearHover();
 
     // Hover new — enlarge in place like river cards
     this.hoveredCard = found.card;
@@ -225,10 +202,59 @@ export class DraftScene extends Phaser.Scene {
       duration: 150, ease: 'Back.easeOut',
     });
     found.card.setDepth(100);
+
+    // Shadow
+    this.hoverShadow = this.add.graphics();
+    this.hoverShadow.setDepth(99);
+    const sw = CARD.WIDTH * this.hoverScale;
+    const sh = CARD.HEIGHT * this.hoverScale;
+    const sx = found.x - sw / 2;
+    const sy = found.y - 20 - sh / 2;
+    this.hoverShadow.fillStyle(0x000000, 0.06);
+    this.hoverShadow.fillRoundedRect(sx - 20, sy - 20, sw + 40, sh + 40, 22);
+    this.hoverShadow.fillStyle(0x000000, 0.10);
+    this.hoverShadow.fillRoundedRect(sx - 14, sy - 14, sw + 28, sh + 28, 18);
+    this.hoverShadow.fillStyle(0x000000, 0.16);
+    this.hoverShadow.fillRoundedRect(sx - 8, sy - 8, sw + 16, sh + 16, 14);
+    this.hoverShadow.fillStyle(0x000000, 0.24);
+    this.hoverShadow.fillRoundedRect(sx - 3, sy - 3, sw + 6, sh + 6, 10);
+
+    // Tooltips
+    const resolved = found.card.getCard();
+    if (resolved) {
+      this.keywordTooltips = createKeywordTooltips(
+        this, resolved, found.x, found.y - 20, this.hoverScale,
+      );
+    }
+  }
+
+  private clearHover() {
+    if (this.hoveredCard) {
+      const entry = this.cardObjects.find(e => e.card === this.hoveredCard);
+      if (entry) {
+        this.tweens.killTweensOf(this.hoveredCard);
+        this.tweens.add({
+          targets: this.hoveredCard,
+          x: entry.x, y: entry.y,
+          scaleX: this.baseCardScale, scaleY: this.baseCardScale,
+          duration: 120, ease: 'Quad.easeOut',
+        });
+        this.hoveredCard.setDepth(0);
+      }
+      this.hoveredCard = null;
+    }
+    if (this.hoverShadow) {
+      this.hoverShadow.destroy();
+      this.hoverShadow = null;
+    }
+    if (this.keywordTooltips) {
+      this.keywordTooltips.destroy(true);
+      this.keywordTooltips = null;
+    }
   }
 
   shutdown() {
-    this.hoveredCard = null;
+    this.clearHover();
     this.input.off('pointermove');
   }
 }

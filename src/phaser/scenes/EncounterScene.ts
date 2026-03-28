@@ -8,6 +8,7 @@ import { DeckPileObject } from '../gameobjects/DeckPileObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 import type { GameState } from '../../types/game.ts';
 import { resolveCard } from '../../engine/scoring.ts';
+import { createKeywordTooltips } from '../utils/KeywordTooltips.ts';
 import { getCardRelations } from '../utils/CardRelations.ts';
 import { TutorialOverlay } from '../gameobjects/TutorialOverlay.ts';
 
@@ -61,6 +62,14 @@ export class EncounterScene extends Phaser.Scene {
   // --- Relationship arrows ---
   private arrowGraphics!: Phaser.GameObjects.Graphics;
 
+  // --- Keyword tooltips + hover shadow ---
+  private keywordTooltips: Phaser.GameObjects.Container | null = null;
+  private hoverShadow: Phaser.GameObjects.Graphics | null = null;
+
+  // --- First-level hints ---
+  private isFirstLevel = false;
+  private hintContainer: Phaser.GameObjects.Container | null = null;
+
   // --- Hand hover/drag state ---
   private hoveredHandIndex = -1;
   private draggingCard: CardObject | null = null;
@@ -112,12 +121,17 @@ export class EncounterScene extends Phaser.Scene {
     // Cleanup on scene shutdown
     this.events.on('shutdown', this.cleanup, this);
 
-    // Show tutorial on first encounter
+    // Show tutorial + hints on first encounter
     const isFirstEncounter = (this.gm.state.run?.encountersCleared ?? 0) === 0;
+    this.isFirstLevel = isFirstEncounter;
     if (isFirstEncounter && TutorialOverlay.shouldShow()) {
       new TutorialOverlay(this, () => {
-        // Tutorial dismissed — game continues
+        // Tutorial dismissed — show hints
+        this.refreshHeader();
       });
+    } else {
+      // No tutorial — show hints immediately
+      this.refreshHeader();
     }
   }
 
@@ -199,6 +213,13 @@ export class EncounterScene extends Phaser.Scene {
     } else {
       this.phaseText.setText('\u2193 Discard a card');
       this.phaseText.setColor('#c4433a');
+    }
+
+    // First-level hints
+    if (this.isFirstLevel && state.phase === 'player_turn') {
+      this.showPhaseHint(state.turnPhase);
+    } else {
+      this.clearPhaseHint();
     }
   }
 
@@ -315,11 +336,13 @@ export class EncounterScene extends Phaser.Scene {
       card.setDepth(oldIndex);
     }
 
+    // Clear shadow
+    this.clearHoverShadow();
+
     // Hover new — scale to match hand hover size
     if (newIndex >= 0 && newIndex < this.riverCards.length) {
       const card = this.riverCards[newIndex];
       const pos = this.riverPositions[newIndex];
-      // Target the same absolute scale as hand hover (hand * 1.5)
       const targetScale = this.scales.hand * 1.5;
       this.tweens.killTweensOf(card);
       this.tweens.add({
@@ -328,7 +351,37 @@ export class EncounterScene extends Phaser.Scene {
         scaleX: targetScale, scaleY: targetScale,
         duration: 150, ease: 'Back.easeOut',
       });
+      // Add shadow behind hovered river card
+      this.hoverShadow = this.add.graphics();
+      this.hoverShadow.setDepth(99);
+      const sw = CARD.WIDTH * targetScale;
+      const sh = CARD.HEIGHT * targetScale;
+      const sx = pos.x - sw / 2;
+      const sy = pos.y - 20 - sh / 2;
+      this.hoverShadow.fillStyle(0x000000, 0.06);
+      this.hoverShadow.fillRoundedRect(sx - 20, sy - 20, sw + 40, sh + 40, 22);
+      this.hoverShadow.fillStyle(0x000000, 0.10);
+      this.hoverShadow.fillRoundedRect(sx - 14, sy - 14, sw + 28, sh + 28, 18);
+      this.hoverShadow.fillStyle(0x000000, 0.16);
+      this.hoverShadow.fillRoundedRect(sx - 8, sy - 8, sw + 16, sh + 16, 14);
+      this.hoverShadow.fillStyle(0x000000, 0.24);
+      this.hoverShadow.fillRoundedRect(sx - 3, sy - 3, sw + 6, sh + 6, 10);
+
       card.setDepth(100);
+
+      // Show keyword tooltips
+      this.clearKeywordTooltips();
+      const resolved = card.getCard();
+      if (resolved) {
+        this.keywordTooltips = createKeywordTooltips(
+          this, resolved, pos.x, pos.y - 20, targetScale,
+        );
+      }
+    }
+
+    // Clear tooltips when un-hovering
+    if (newIndex < 0) {
+      this.clearKeywordTooltips();
     }
   }
 
@@ -533,6 +586,99 @@ export class EncounterScene extends Phaser.Scene {
     this.finalizeBtn.setEnabled(hasCards && !isDiscardPhase);
   }
 
+  // ═══════════════════════════════════════════════════════
+  //  FIRST-LEVEL HINTS
+  // ═══════════════════════════════════════════════════════
+
+  private showPhaseHint(phase: string): void {
+    this.clearPhaseHint();
+
+    this.hintContainer = this.add.container(0, 0);
+    this.hintContainer.setDepth(5); // behind cards (cards are 10+)
+
+    if (phase === 'draw') {
+      // Position below the deck/river area, left-aligned
+      const riverBottom = this.riverStartY + 18 + CARD.HEIGHT * this.scales.river + 8;
+      const hintX = 14;
+      const hintY = riverBottom;
+
+      // Background pill
+      const bg = this.add.graphics();
+      const pillW = 220;
+      bg.fillStyle(0x22c55e, 0.15);
+      bg.fillRoundedRect(hintX, hintY, pillW, 24, 12);
+      bg.lineStyle(1.5, 0x22c55e, 0.4);
+      bg.strokeRoundedRect(hintX, hintY, pillW, 24, 12);
+      this.hintContainer.add(bg);
+
+      const hint = this.add.text(hintX + pillW / 2, hintY + 4, '▲ Tap deck or river card to draw', {
+        fontFamily: FONTS.card, fontSize: '10px', color: '#166534',
+        fontStyle: 'bold', resolution: 2,
+      }).setOrigin(0.5, 0);
+      this.hintContainer.add(hint);
+
+      // Pulse
+      this.tweens.add({
+        targets: [bg, hint],
+        alpha: { from: 0.5, to: 1 },
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+      });
+    } else if (phase === 'discard') {
+      // Position just above hand cards
+      const dcx = this.width / 2;
+      const handTopY = this.handBottomY - CARD.HEIGHT * this.scales.hand - 50;
+      const hintY = handTopY;
+      const pillW = 260;
+
+      // Background pill
+      const bg = this.add.graphics();
+      bg.fillStyle(0xc4433a, 0.12);
+      bg.fillRoundedRect(dcx - pillW / 2, hintY - 4, pillW, 28, 14);
+      bg.lineStyle(1.5, 0xc4433a, 0.4);
+      bg.strokeRoundedRect(dcx - pillW / 2, hintY - 4, pillW, 28, 14);
+      this.hintContainer.add(bg);
+
+      const hint = this.add.text(dcx, hintY + 2, '▲  Drag a card up to the river  ▲', {
+        fontFamily: FONTS.card, fontSize: '10px', color: '#991b1b',
+        fontStyle: 'bold', resolution: 2,
+      }).setOrigin(0.5, 0);
+      this.hintContainer.add(hint);
+
+      // Pulse
+      this.tweens.add({
+        targets: [bg, hint],
+        alpha: { from: 0.5, to: 1 },
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+  }
+
+  private clearPhaseHint(): void {
+    if (this.hintContainer) {
+      this.tweens.killTweensOf(this.hintContainer.list);
+      this.hintContainer.destroy(true);
+      this.hintContainer = null;
+    }
+  }
+
+  private clearHoverShadow(): void {
+    if (this.hoverShadow) {
+      this.hoverShadow.destroy();
+      this.hoverShadow = null;
+    }
+  }
+
+  private clearKeywordTooltips(): void {
+    if (this.keywordTooltips) {
+      this.keywordTooltips.destroy(true);
+      this.keywordTooltips = null;
+    }
+  }
+
   private onFinalize(): void {
     this.gm.finalizeHand();
     this.scene.start('ScoringScene');
@@ -568,6 +714,8 @@ export class EncounterScene extends Phaser.Scene {
 
       // Check deck tap
       if (this.isDeckAtPointer(pointer.x, pointer.y)) {
+        this.clearHoverShadow();
+        this.clearKeywordTooltips();
         this.onDeckTap();
         return;
       }
@@ -575,6 +723,10 @@ export class EncounterScene extends Phaser.Scene {
       // Check river card tap
       const riverIdx = this.getRiverCardAtPointer(pointer.x, pointer.y);
       if (riverIdx >= 0) {
+        // Clear hover effects before drawing
+        this.clearHoverShadow();
+        this.clearKeywordTooltips();
+        this.setHoveredRiverIndex(-1);
         this.onRiverCardTap(riverIdx);
         return;
       }
@@ -712,26 +864,41 @@ export class EncounterScene extends Phaser.Scene {
   private setHoveredIndex(newIndex: number): void {
     if (newIndex === this.hoveredHandIndex) return;
 
-    const oldIndex = this.hoveredHandIndex;
     this.hoveredHandIndex = newIndex;
 
-    // Un-hover old card
-    if (oldIndex >= 0 && oldIndex < this.handCards.length) {
-      const card = this.handCards[oldIndex];
-      const pos = this.handPositions[oldIndex];
-      this.tweens.killTweensOf(card);
+    // Push neighboring cards outward and return all non-hovered cards to rest
+    const hoverExtraHalfW = CARD.WIDTH * (this.scales.hand * 1.5 - this.scales.hand) * 0.9;
+    for (let i = 0; i < this.handCards.length; i++) {
+      if (i === newIndex) continue;
+      const c = this.handCards[i];
+      const p = this.handPositions[i];
+      if (!c || !p) continue;
+
+      let pushX = 0;
+      if (newIndex >= 0) {
+        const dist = Math.abs(i - newIndex);
+        if (dist <= 4) {
+          const factor = 1 - (dist - 1) / 4; // 1.0, 0.75, 0.5, 0.25
+          pushX = (i < newIndex ? -1 : 1) * hoverExtraHalfW * Math.max(factor, 0);
+        }
+      }
+
+      this.tweens.killTweensOf(c);
       this.tweens.add({
-        targets: card,
-        x: pos.x,
-        y: pos.y,
-        rotation: pos.rotation,
+        targets: c,
+        x: p.x + pushX,
+        y: p.y,
+        rotation: p.rotation,
         scaleX: this.scales.hand,
         scaleY: this.scales.hand,
         duration: 120,
         ease: 'Quad.easeOut',
       });
-      card.setDepth(oldIndex);
+      c.setDepth(i);
     }
+
+    // Remove old shadow
+    this.clearHoverShadow();
 
     // Hover new card
     if (newIndex >= 0 && newIndex < this.handCards.length) {
@@ -748,7 +915,38 @@ export class EncounterScene extends Phaser.Scene {
         duration: 150,
         ease: 'Back.easeOut',
       });
+      // Add dark shadow behind hovered card
+      const hoverScale = this.scales.hand * 1.5;
+      this.hoverShadow = this.add.graphics();
+      this.hoverShadow.setDepth(99);
+      const sw = CARD.WIDTH * hoverScale;
+      const sh = CARD.HEIGHT * hoverScale;
+      const sx = pos.x - sw / 2;
+      const sy = pos.y - 40 - sh / 2;
+      this.hoverShadow.fillStyle(0x000000, 0.06);
+      this.hoverShadow.fillRoundedRect(sx - 20, sy - 20, sw + 40, sh + 40, 22);
+      this.hoverShadow.fillStyle(0x000000, 0.10);
+      this.hoverShadow.fillRoundedRect(sx - 14, sy - 14, sw + 28, sh + 28, 18);
+      this.hoverShadow.fillStyle(0x000000, 0.16);
+      this.hoverShadow.fillRoundedRect(sx - 8, sy - 8, sw + 16, sh + 16, 14);
+      this.hoverShadow.fillStyle(0x000000, 0.24);
+      this.hoverShadow.fillRoundedRect(sx - 3, sy - 3, sw + 6, sh + 6, 10);
+
       card.setDepth(100);
+
+      // Show keyword tooltips
+      this.clearKeywordTooltips();
+      const resolved = card.getCard();
+      if (resolved) {
+        this.keywordTooltips = createKeywordTooltips(
+          this, resolved, pos.x, pos.y - 40, hoverScale,
+        );
+      }
+    }
+
+    // Clear tooltips when un-hovering
+    if (newIndex < 0) {
+      this.clearKeywordTooltips();
     }
 
     // Draw relationship arrows (with animation follow)
@@ -1025,6 +1223,11 @@ export class EncounterScene extends Phaser.Scene {
   }
 
   private onHandChanged(): void {
+    // Clear any lingering hover effects
+    this.clearHoverShadow();
+    this.clearKeywordTooltips();
+    this.hoveredRiverIndex = -1;
+
     // Check for scoring transition after discard
     if (this.gm.state.phase === 'scoring') {
       this.scene.start('ScoringScene');

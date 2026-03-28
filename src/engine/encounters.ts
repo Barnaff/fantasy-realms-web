@@ -64,8 +64,9 @@ export function generateEncounterForNode(
   act: number,
   rng: SeededRNG,
 ): Encounter {
-  const baseThreshold = 100 + act * 30 + encounterIndex * 15;
-  const variance = rng.nextInt(-5, 10);
+  // Act 1 starts ~100, scales up gradually
+  const baseThreshold = 70 + act * 25 + encounterIndex * 12;
+  const variance = rng.nextInt(-5, 8);
   const threshold = baseThreshold + variance;
 
   // Pick a thematic encounter
@@ -87,7 +88,7 @@ export function generateBossEncounter(
   act: number,
   rng: SeededRNG,
 ): Encounter {
-  const threshold = 100 + act * 80;
+  const threshold = 80 + act * 60;
   const stipulation = BOSS_STIPULATIONS[rng.nextInt(0, BOSS_STIPULATIONS.length - 1)];
   const name = BOSS_NAMES[Math.min(act - 1, BOSS_NAMES.length - 1)];
 

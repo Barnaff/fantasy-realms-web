@@ -1,20 +1,61 @@
 import type { ScoringEffect, Tag } from '../../types/card.ts';
+import { CARD_DEFS } from '../../data/cards.ts';
 import { TAG_COLORS } from './Colors.ts';
 import { FONTS } from '../../config.ts';
 
+// Build card name patterns sorted by length (longest first to avoid partial matches)
+const CARD_NAME_PATTERNS: { pattern: RegExp; color: string }[] = CARD_DEFS
+  .map(def => def.name)
+  .sort((a, b) => b.length - a.length) // longest first
+  .map(name => {
+    // Get primary tag color for this card
+    const def = CARD_DEFS.find(d => d.name === name)!;
+    const tagColor = TAG_COLORS[def.tags[0]] ?? 0x888888;
+    const hexColor = '#' + tagColor.toString(16).padStart(6, '0');
+    // Escape special regex chars in card name
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return {
+      pattern: new RegExp(`\\b${escaped}\\b`, 'i'),
+      color: hexColor,
+    };
+  });
+
 const ALL_TAGS: Tag[] = ['Beast', 'Fire', 'Weather', 'Leader', 'Weapon', 'Land', 'Wild', 'Flood', 'Army', 'Artifact', 'Wizard', 'Undead'];
-const KEYWORDS = ['BLANKED', 'Blanks', 'Blanked', 'blank', 'discard', 'Discard'];
+
+// Build a regex that matches any tag name variation (case-insensitive, with optional plural 's')
+// Also matches common variations like "Armies", "Beasts", "Leaders", "Weapons", etc.
+const TAG_VARIATIONS: { pattern: RegExp; tag: Tag }[] = ALL_TAGS.map(tag => {
+  // Handle special plurals
+  const plurals: Record<string, string> = {
+    Army: 'Armies|Army',
+    Beast: 'Beasts?',
+    Fire: 'Fires?|Flames?',
+    Weather: 'Weather',
+    Leader: 'Leaders?',
+    Weapon: 'Weapons?',
+    Land: 'Lands?',
+    Wild: 'Wilds?',
+    Flood: 'Floods?',
+    Artifact: 'Artifacts?',
+    Wizard: 'Wizards?',
+    Undead: 'Undead',
+  };
+  const pat = plurals[tag] || tag + 's?';
+  return { pattern: new RegExp(`\\b(${pat})\\b`, 'i'), tag };
+});
+
+const KEYWORD_PATTERN = /\b(BLANKED|Blanks|Blanked|blank|blanks|blanked|discard|Discard)\b/i;
 
 export interface TextSegment {
   text: string;
-  color: string;    // hex string like '#2c1810'
+  color: string;
   bold: boolean;
 }
 
 /**
  * Parse effect description into colored segments.
- * Tag names → tag color + bold
- * Keywords (BLANKED, discard) → red + bold
+ * Tag name variations (incl. plurals, case-insensitive) → tag color + bold
+ * Keywords (BLANKED, Blanks, discard) → red + bold
  * Everything else → base color
  */
 export function parseEffectText(description: string, baseColor: string): TextSegment[] {
@@ -22,18 +63,18 @@ export function parseEffectText(description: string, baseColor: string): TextSeg
   let remaining = description;
 
   while (remaining.length > 0) {
-    // Find the earliest tag or keyword match
+    // Find the earliest match across all patterns
     let earliestIdx = remaining.length;
     let matchLen = 0;
     let matchColor = baseColor;
     let matchBold = false;
 
-    // Check tags
-    for (const tag of ALL_TAGS) {
-      const idx = remaining.indexOf(tag);
-      if (idx >= 0 && idx < earliestIdx) {
-        earliestIdx = idx;
-        matchLen = tag.length;
+    // Check tag variations (case-insensitive with plurals)
+    for (const { pattern, tag } of TAG_VARIATIONS) {
+      const m = pattern.exec(remaining);
+      if (m && m.index < earliestIdx) {
+        earliestIdx = m.index;
+        matchLen = m[0].length;
         const c = TAG_COLORS[tag];
         matchColor = '#' + c.toString(16).padStart(6, '0');
         matchBold = true;
@@ -41,12 +82,21 @@ export function parseEffectText(description: string, baseColor: string): TextSeg
     }
 
     // Check keywords
-    for (const kw of KEYWORDS) {
-      const idx = remaining.indexOf(kw);
-      if (idx >= 0 && idx < earliestIdx) {
-        earliestIdx = idx;
-        matchLen = kw.length;
-        matchColor = '#c4433a';
+    const kwMatch = KEYWORD_PATTERN.exec(remaining);
+    if (kwMatch && kwMatch.index < earliestIdx) {
+      earliestIdx = kwMatch.index;
+      matchLen = kwMatch[0].length;
+      matchColor = '#c4433a';
+      matchBold = true;
+    }
+
+    // Check card names (longest first)
+    for (const { pattern, color } of CARD_NAME_PATTERNS) {
+      const m = pattern.exec(remaining);
+      if (m && m.index < earliestIdx) {
+        earliestIdx = m.index;
+        matchLen = m[0].length;
+        matchColor = color;
         matchBold = true;
       }
     }

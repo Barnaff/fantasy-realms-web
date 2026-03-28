@@ -6,6 +6,7 @@ import { CardObject } from '../gameobjects/CardObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 import { CARD_DEF_MAP } from '../../data/cards.ts';
 import { resolveCard } from '../../engine/scoring.ts';
+import { createKeywordTooltips } from '../utils/KeywordTooltips.ts';
 import type { CardInstance } from '../../types/card.ts';
 
 export class PostEncounterScene extends Phaser.Scene {
@@ -14,6 +15,8 @@ export class PostEncounterScene extends Phaser.Scene {
   private hoveredIndex = -1;
   private selectBtn: ButtonObject | null = null;
   private baseScale = 1;
+  private hoverShadow: Phaser.GameObjects.Graphics | null = null;
+  private keywordTooltips: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super({ key: 'PostEncounterScene' });
@@ -172,6 +175,9 @@ export class PostEncounterScene extends Phaser.Scene {
     const old = this.hoveredIndex;
     this.hoveredIndex = idx;
 
+    // Clear shadow + tooltips
+    this.clearHoverEffects();
+
     // Un-hover previous (unless it's selected)
     if (old >= 0 && old < this.rewardCards.length && old !== this.selectedIndex) {
       const card = this.rewardCards[old];
@@ -188,10 +194,11 @@ export class PostEncounterScene extends Phaser.Scene {
       card.setDepth(old + 1);
     }
 
-    // Hover new — enlarge 1.5× from center (no y shift = center pivot)
+    // Hover new — enlarge 1.5× from center
     if (idx >= 0 && idx < this.rewardCards.length && idx !== this.selectedIndex) {
       const card = this.rewardCards[idx];
       const hoverScale = this.baseScale * 1.5;
+      const hoverY = (card.getData('originY') as number) ?? card.y;
       this.tweens.killTweensOf(card);
       this.tweens.add({
         targets: card,
@@ -201,6 +208,41 @@ export class PostEncounterScene extends Phaser.Scene {
         ease: 'Back.easeOut',
       });
       card.setDepth(200);
+
+      // Shadow
+      this.hoverShadow = this.add.graphics();
+      this.hoverShadow.setDepth(199);
+      const sw = CARD.WIDTH * hoverScale;
+      const sh = CARD.HEIGHT * hoverScale;
+      const sx = card.x - sw / 2;
+      const sy = hoverY - sh / 2;
+      this.hoverShadow.fillStyle(0x000000, 0.06);
+      this.hoverShadow.fillRoundedRect(sx - 20, sy - 20, sw + 40, sh + 40, 22);
+      this.hoverShadow.fillStyle(0x000000, 0.10);
+      this.hoverShadow.fillRoundedRect(sx - 14, sy - 14, sw + 28, sh + 28, 18);
+      this.hoverShadow.fillStyle(0x000000, 0.16);
+      this.hoverShadow.fillRoundedRect(sx - 8, sy - 8, sw + 16, sh + 16, 14);
+      this.hoverShadow.fillStyle(0x000000, 0.24);
+      this.hoverShadow.fillRoundedRect(sx - 3, sy - 3, sw + 6, sh + 6, 10);
+
+      // Tooltips
+      const resolved = card.getCard();
+      if (resolved) {
+        this.keywordTooltips = createKeywordTooltips(
+          this, resolved, card.x, hoverY, hoverScale,
+        );
+      }
+    }
+  }
+
+  private clearHoverEffects(): void {
+    if (this.hoverShadow) {
+      this.hoverShadow.destroy();
+      this.hoverShadow = null;
+    }
+    if (this.keywordTooltips) {
+      this.keywordTooltips.destroy(true);
+      this.keywordTooltips = null;
     }
   }
 

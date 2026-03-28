@@ -4,6 +4,7 @@ import { RARITY_COLORS } from '../../types/card.ts';
 import { CARD, FONTS, COLORS } from '../../config.ts';
 import { TAG_COLORS, TAG_ART_FALLBACK } from '../utils/Colors.ts';
 import { createRichEffectText, isPenaltyEffect } from '../utils/TextFormatter.ts';
+import { groupEffects } from '../utils/EffectGrouper.ts';
 import { TagBadgeObject } from './TagBadgeObject.ts';
 
 /**
@@ -105,7 +106,7 @@ export class CardObject extends Phaser.GameObjects.Container {
 
     const nameText = scene.add.text(0, nameY, card.name, {
       fontFamily: FONTS.card,
-      fontSize: '11px',
+      fontSize: '10px',
       color: '#2c1810',
       fontStyle: 'bold',
       align: 'center',
@@ -123,32 +124,30 @@ export class CardObject extends Phaser.GameObjects.Container {
     }
     this.add(nameText);
 
-    // --- 7. Scoring effects (rich text with colored tag names) ---
+    // --- 7. Scoring effects (grouped + rich text with colored tag names) ---
     let curEffectY = nameY + (nameText.height || 10) + 3;
     const maxEffectWidth = W - 14;
-    const effectFontSize = 9;
-    const maxEffectBottom = H / 2 - 3; // don't overflow past card bottom
+    const effectFontSize = 8;
+    const maxEffectBottom = H / 2 - 3;
 
-    for (let i = 0; i < card.scoringEffects.length; i++) {
-      if (curEffectY >= maxEffectBottom) break; // no more room
+    const grouped = groupEffects(card.scoringEffects);
+    for (let i = 0; i < grouped.length; i++) {
+      if (curEffectY >= maxEffectBottom) break;
 
-      const effect = card.scoringEffects[i];
+      const effect = grouped[i];
       const penalty = isPenaltyEffect(effect);
       const textObjs = createRichEffectText(
         scene, 0, curEffectY,
         effect.description, effectFontSize, maxEffectWidth, penalty, RES,
       );
 
-      // Measure actual height of rendered text
       let maxH = 0;
       for (const t of textObjs) {
         maxH = Math.max(maxH, t.height);
         scene.children.remove(t);
       }
 
-      // Check if this line would overflow
       if (curEffectY + maxH > maxEffectBottom) {
-        // Destroy overflow text
         for (const t of textObjs) t.destroy();
         break;
       }
