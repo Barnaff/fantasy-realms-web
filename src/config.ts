@@ -42,6 +42,7 @@ export const CARD = {
 export const FONTS = {
   display: 'MedievalSharp',
   body: 'Crimson Text',
+  card: 'Nunito, Segoe UI, Arial, sans-serif',
 } as const;
 
 export const DURATION = {

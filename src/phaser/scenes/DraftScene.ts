@@ -5,6 +5,7 @@ import { RARITY_LABELS } from '../../types/card.ts';
 import { GameManager } from '../systems/GameManager.ts';
 import { CardObject } from '../gameobjects/CardObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
+import { LayoutHelper } from '../systems/LayoutHelper.ts';
 import { resolveCard } from '../../engine/scoring.ts';
 
 export class DraftScene extends Phaser.Scene {
@@ -12,7 +13,9 @@ export class DraftScene extends Phaser.Scene {
   private highlightGraphics: Map<string, Phaser.GameObjects.Graphics> = new Map();
   private selectBtn: ButtonObject | null = null;
   private cardObjects: { card: CardObject; x: number; y: number; scale: number }[] = [];
-  private hoverPreview: CardObject | null = null;
+  private hoveredCard: CardObject | null = null;
+  private hoverScale = 1.8;
+  private baseCardScale = 0.85;
 
   constructor() {
     super({ key: 'DraftScene' });
@@ -27,7 +30,7 @@ export class DraftScene extends Phaser.Scene {
     this.selectedId = null;
     this.highlightGraphics.clear();
     this.cardObjects = [];
-    this.hoverPreview = null;
+    this.hoveredCard = null;
 
     if (!options || options.length === 0) {
       this.scene.start('MapScene');
@@ -52,13 +55,14 @@ export class DraftScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Layout: vertical list of options, each a horizontal row of cards
-    const cardScale = Math.min(0.7, (width - 120) / (5 * (CARD.WIDTH + 8)));
+    // Use river card scale from LayoutHelper for consistency
+    const scales = LayoutHelper.getScales(width, height);
+    const cardScale = Math.min(scales.river, (width - 80) / (5 * (CARD.WIDTH + 10)));
     const cardW = CARD.WIDTH * cardScale;
     const cardH = CARD.HEIGHT * cardScale;
-    const cardGap = cardW + 8;
-    const rowH = cardH + 40;
+    const cardGap = cardW + 10;
+    const rowH = cardH + 44;
     const startY = 75;
-    // const contentH = options.length * rowH + 50;
 
     for (let oi = 0; oi < options.length; oi++) {
       const option = options[oi];
@@ -136,6 +140,10 @@ export class DraftScene extends Phaser.Scene {
     });
     this.selectBtn.setAlpha(0.4);
 
+    // Store scales for hover preview
+    this.hoverScale = scales.hand * 1.5;
+    this.baseCardScale = cardScale;
+
     // Hover preview system
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       this.updateHoverPreview(pointer);
@@ -171,67 +179,56 @@ export class DraftScene extends Phaser.Scene {
     }
 
     if (!found) {
-      if (this.hoverPreview) {
-        this.hoverPreview.destroy();
-        this.hoverPreview = null;
+      // Un-hover current
+      if (this.hoveredCard) {
+        const entry = this.cardObjects.find(e => e.card === this.hoveredCard);
+        if (entry) {
+          this.tweens.killTweensOf(this.hoveredCard);
+          this.tweens.add({
+            targets: this.hoveredCard,
+            x: entry.x, y: entry.y,
+            scaleX: this.baseCardScale, scaleY: this.baseCardScale,
+            duration: 120, ease: 'Quad.easeOut',
+          });
+          this.hoveredCard.setDepth(0);
+        }
+        this.hoveredCard = null;
       }
       return;
     }
 
-    // Get the resolved card data from the found CardObject
-    const resolved = found.card.getCard();
-    if (!resolved) {
-      if (this.hoverPreview) {
-        this.hoverPreview.destroy();
-        this.hoverPreview = null;
+    // Already hovering this card
+    if (this.hoveredCard === found.card) return;
+
+    // Un-hover old
+    if (this.hoveredCard) {
+      const oldEntry = this.cardObjects.find(e => e.card === this.hoveredCard);
+      if (oldEntry) {
+        this.tweens.killTweensOf(this.hoveredCard);
+        this.tweens.add({
+          targets: this.hoveredCard,
+          x: oldEntry.x, y: oldEntry.y,
+          scaleX: this.baseCardScale, scaleY: this.baseCardScale,
+          duration: 120, ease: 'Quad.easeOut',
+        });
+        this.hoveredCard.setDepth(0);
       }
-      return;
     }
 
-    // Check if already showing this card
-    if (this.hoverPreview && this.hoverPreview.getCard()?.instanceId === resolved.instanceId) {
-      return;
-    }
-
-    // Remove old preview
-    if (this.hoverPreview) {
-      this.hoverPreview.destroy();
-      this.hoverPreview = null;
-    }
-
-    // Create enlarged preview
-    const previewScale = 1.2;
-    const previewW = CARD.WIDTH * previewScale;
-    const previewH = CARD.HEIGHT * previewScale;
-
-    // Position: above the card, clamped to screen
-    let px = found.x;
-    let py = found.y - (CARD.HEIGHT * found.scale) / 2 - previewH / 2 - 8;
-
-    // Clamp
-    const { width, height } = this.scale;
-    px = Math.max(previewW / 2 + 4, Math.min(px, width - previewW / 2 - 4));
-    if (py - previewH / 2 < 4) {
-      py = found.y + (CARD.HEIGHT * found.scale) / 2 + previewH / 2 + 8;
-    }
-    py = Math.max(previewH / 2 + 4, Math.min(py, height - previewH / 2 - 4));
-
-    this.hoverPreview = new CardObject(this, px, py, resolved);
-    this.hoverPreview.setScale(previewScale);
-    this.hoverPreview.setDepth(100);
-
-    // Drop shadow
-    const shadow = this.add.graphics();
-    shadow.fillStyle(0x000000, 0.2);
-    shadow.fillRoundedRect(-CARD.WIDTH / 2 + 3, -CARD.HEIGHT / 2 + 3, CARD.WIDTH, CARD.HEIGHT, CARD.BORDER_RADIUS);
-    this.hoverPreview.addAt(shadow, 0);
+    // Hover new — enlarge in place like river cards
+    this.hoveredCard = found.card;
+    this.tweens.killTweensOf(found.card);
+    this.tweens.add({
+      targets: found.card,
+      y: found.y - 20,
+      scaleX: this.hoverScale, scaleY: this.hoverScale,
+      duration: 150, ease: 'Back.easeOut',
+    });
+    found.card.setDepth(100);
   }
 
   shutdown() {
-    if (this.hoverPreview) {
-      this.hoverPreview.destroy();
-      this.hoverPreview = null;
-    }
+    this.hoveredCard = null;
     this.input.off('pointermove');
   }
 }

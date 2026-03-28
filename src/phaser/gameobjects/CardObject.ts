@@ -78,7 +78,7 @@ export class CardObject extends Phaser.GameObjects.Container {
 
     const valueText = scene.add.text(circleX, circleY, String(card.baseValue), {
       fontFamily: FONTS.display,
-      fontSize: '12px',
+      fontSize: '14px',
       color: '#ffffff',
       fontStyle: 'bold',
       align: 'center',
@@ -104,8 +104,8 @@ export class CardObject extends Phaser.GameObjects.Container {
     const maxNameWidth = W - 12;
 
     const nameText = scene.add.text(0, nameY, card.name, {
-      fontFamily: FONTS.display,
-      fontSize: '10px',
+      fontFamily: FONTS.card,
+      fontSize: '11px',
       color: '#2c1810',
       fontStyle: 'bold',
       align: 'center',
@@ -126,7 +126,7 @@ export class CardObject extends Phaser.GameObjects.Container {
     // --- 7. Scoring effects (rich text with colored tag names) ---
     let curEffectY = nameY + (nameText.height || 10) + 3;
     const maxEffectWidth = W - 14;
-    const effectFontSize = 7;
+    const effectFontSize = 9;
     const maxEffectBottom = H / 2 - 3; // don't overflow past card bottom
 
     for (let i = 0; i < card.scoringEffects.length; i++) {
@@ -177,7 +177,7 @@ export class CardObject extends Phaser.GameObjects.Container {
 
     const blankedLabel = scene.add.text(0, artY, 'BLANKED', {
       fontFamily: FONTS.display,
-      fontSize: '12px',
+      fontSize: '14px',
       color: '#cc3333',
       stroke: '#ffffff',
       strokeThickness: 2,

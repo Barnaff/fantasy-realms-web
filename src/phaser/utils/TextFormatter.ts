@@ -91,7 +91,7 @@ export function createRichEffectText(
 
   for (const seg of segments) {
     const t = scene.add.text(0, 0, seg.text, {
-      fontFamily: FONTS.body,
+      fontFamily: FONTS.card,
       fontSize: fontSize + 'px',
       color: seg.color,
       fontStyle: seg.bold ? 'bold' : '',
@@ -105,7 +105,7 @@ export function createRichEffectText(
   // Fall back to single wrapped text if too wide
   if (totalW > maxWidth) {
     const singleText = scene.add.text(centerX, y, description, {
-      fontFamily: FONTS.body,
+      fontFamily: FONTS.card,
       fontSize: fontSize + 'px',
       color: baseColor,
       align: 'center',
@@ -122,7 +122,7 @@ export function createRichEffectText(
 
   for (const seg of tempTexts) {
     const t = scene.add.text(curX, y, seg.text, {
-      fontFamily: FONTS.body,
+      fontFamily: FONTS.card,
       fontSize: fontSize + 'px',
       color: seg.color,
       fontStyle: seg.bold ? 'bold' : '',

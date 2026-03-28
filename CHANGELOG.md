@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.0 — 2026-03-28
+
+### Improvements
+- River and deck cards enlarged 1.5× (0.85 → 1.25 desktop, 0.7 → 1.05 mobile)
+- Card text made more readable with Nunito sans-serif font (replaces serif/decorative)
+- Card text sizes increased: value 14px, name 12px, effects 9px
+- Draft pick screen uses river-scale cards (larger, consistent with gameplay)
+- Draft hover preview matches river hover behavior (enlarge in-place with spring animation)
+- Admin deployed alongside game at /admin/ path
+- Admin BrowserRouter basename fixed for /admin/ subdirectory routing
+- Amplify build config (amplify.yml) added
+
+### Fixes
+- Multiple TypeScript build errors fixed for Amplify deployment
+- Admin removed from main tsconfig references (builds separately)
+- Admin index.html entry point fixed to relative path
+- Vite config cleaned up (admin multi-page build with React plugin scoped to admin/)
+
 ## 0.8.0 — 2026-03-28
 
 ### New Features
