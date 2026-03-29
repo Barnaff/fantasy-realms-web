@@ -186,13 +186,13 @@ export class TitleScene extends Phaser.Scene {
     overlay.add(panel);
 
     // Header
-    this.add.text(panelX + 16, panelY + 14, 'Changelog', {
+    const headerText = this.add.text(panelX + 16, panelY + 14, 'Changelog', {
       fontFamily: FONTS.display,
       fontSize: '18px',
       color: '#2c1810',
       resolution: 2,
     });
-    overlay.add(overlay.last!);
+    overlay.add(headerText);
 
     // Close button
     const closeBtn = this.add.text(panelX + panelW - 16, panelY + 14, '✕', {

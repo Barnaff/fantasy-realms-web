@@ -3,13 +3,13 @@ import type { GameState } from '../../types/game.ts';
 import type { ResolvedCard } from '../../types/card.ts';
 import type { MapNode } from '../../types/map.ts';
 import { createInitialGameState, startRun, startEncounter } from '../../engine/run.ts';
-import { drawFromRiver, drawFromDeck, discardToRiver } from '../../engine/river.ts';
+import { createRiver, dealInitialHand, drawFromRiver, drawFromDeck, discardToRiver } from '../../engine/river.ts';
 import { MAX_RIVER_DISCARDS } from '../../types/game.ts';
 import { scoreHand, resolveCard } from '../../engine/scoring.ts';
 import { executeDiscardEffect } from '../../engine/effects.ts';
 import { addCardToPool, generatePostEncounterReward } from '../../engine/pool.ts';
 import { generateMerchantStock, buyCard, buyRelic, removeCardFromPool, type MerchantStock } from '../../engine/merchant.ts';
-import { getAvailableNodes, markNodeVisited, findNode } from '../../engine/map.ts';
+import { getAvailableNodes, markNodeVisited, findNode, generateMap } from '../../engine/map.ts';
 import { generateEncounterForNode, generateBossEncounter } from '../../engine/encounters.ts';
 import { SeededRNG } from '../../utils/random.ts';
 import { EVENT_DEFS } from '../../data/events.ts';
@@ -117,7 +117,7 @@ export class GameManager {
    * Called from GameOverScene after determining victory status.
    */
   saveCompletedRun(won: boolean) {
-    if (this.currentRunRecord.id && !this.currentRunRecord.endedAt) {
+    if (this.currentRunRecord.id && !this.currentRunRecord.endedAt && !this.currentRunRecord.cheated) {
       this.saveRunRecord(won);
     }
   }
@@ -175,7 +175,7 @@ export class GameManager {
 
   /** Incrementally save run progress after each level (non-blocking) */
   private saveRunProgress() {
-    if (!this.currentRunRecord.id) return;
+    if (!this.currentRunRecord.id || this.currentRunRecord.cheated) return;
     const record = this.buildRunRecord(false, false);
     console.log('[Analytics] saveRunProgress:', {
       levels: record.levels.length,
@@ -498,6 +498,7 @@ export class GameManager {
       run: { ...this.state.run, pool, skippedCardCounts: skipped },
       postEncounterReward: null,
     };
+    this.advanceAfterBossIfNeeded();
     this.saveRunProgress();
     this.emit('stateChanged');
     this.emit('phaseChanged');
@@ -530,8 +531,8 @@ export class GameManager {
 
     // All offered cards are skipped
     const skipped = { ...this.state.run.skippedCardCounts };
-    const allOptions = this.state.postEncounterReward?.cardChoices ?? [];
-    for (const option of allOptions) {
+    const skipOptions = this.state.postEncounterReward?.cardChoices ?? [];
+    for (const option of skipOptions) {
       for (const defId of option.cards) {
         skipped[defId] = (skipped[defId] || 0) + 1;
       }
@@ -543,9 +544,37 @@ export class GameManager {
       run: { ...this.state.run, skippedCardCounts: skipped },
       postEncounterReward: null,
     };
+    this.advanceAfterBossIfNeeded();
     this.saveRunProgress();
     this.emit('stateChanged');
     this.emit('phaseChanged');
+  }
+
+  /** After a boss victory, advance to the next act or trigger victory. */
+  private advanceAfterBossIfNeeded() {
+    if (!this.state.run || !this.state.encounter?.isBoss) return;
+
+    const { act, totalActs } = this.state.run.map;
+    if (act >= totalActs) {
+      // Final boss defeated — victory!
+      this.state = { ...this.state, phase: 'game_over' };
+      return;
+    }
+
+    // Generate the next act's map
+    const rng = new SeededRNG(this.state.run.seed + act * 10000);
+    const nextMap = generateMap(rng, { act: act + 1, totalActs });
+    this.state = {
+      ...this.state,
+      phase: 'map',
+      run: {
+        ...this.state.run,
+        map: nextMap,
+        currentNodeId: 'start',
+        completedNodeIds: ['start'],
+      },
+      encounter: null,
+    };
   }
 
   // ── Merchant ──
@@ -639,5 +668,73 @@ export class GameManager {
 
   getResolvedHand(): ResolvedCard[] {
     return this.state.hand.cards.map(resolveCard);
+  }
+
+  // ── Cheats (localhost only) ──
+
+  cheatWin() {
+    if (!this.state.encounter || this.state.phase !== 'player_turn') return;
+    this.currentRunRecord.cheated = true;
+    const fakeScore = this.state.encounter.scoreThreshold + 100;
+    this.state = {
+      ...this.state,
+      phase: 'scoring',
+      lastScoreResult: {
+        totalScore: fakeScore,
+        breakdown: this.state.hand.cards.map(c => ({
+          cardId: c.defId,
+          cardName: c.defId,
+          baseValue: Math.floor(fakeScore / this.state.hand.cards.length),
+          bonuses: [],
+          penalties: [],
+          blanked: false,
+          finalValue: Math.floor(fakeScore / this.state.hand.cards.length),
+        })),
+        relicBonuses: [],
+      },
+    };
+    this.emit('stateChanged');
+    this.emit('phaseChanged');
+  }
+
+  cheatLose() {
+    if (!this.state.encounter || this.state.phase !== 'player_turn') return;
+    this.currentRunRecord.cheated = true;
+    this.state = {
+      ...this.state,
+      phase: 'scoring',
+      lastScoreResult: {
+        totalScore: 0,
+        breakdown: this.state.hand.cards.map(c => ({
+          cardId: c.defId,
+          cardName: c.defId,
+          baseValue: 0,
+          bonuses: [],
+          penalties: [],
+          blanked: true,
+          finalValue: 0,
+        })),
+        relicBonuses: [],
+      },
+    };
+    this.emit('stateChanged');
+    this.emit('phaseChanged');
+  }
+
+  cheatRerollHand() {
+    if (!this.state.run || !this.state.river || this.state.phase !== 'player_turn') return;
+    this.currentRunRecord.cheated = true;
+    const rng = new SeededRNG(Date.now());
+    const allCards = [
+      ...this.state.hand.cards,
+      ...this.state.river.cards,
+      ...this.state.river.deck,
+    ];
+    const reshuffled = rng.shuffle(allCards);
+    const freshRiver = createRiver(reshuffled);
+    const { river, hand } = dealInitialHand(freshRiver, this.state.hand.maxSize);
+    this.state = { ...this.state, river, hand };
+    this.emit('stateChanged');
+    this.emit('handChanged');
   }
 }

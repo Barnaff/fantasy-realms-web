@@ -45,6 +45,7 @@ export interface RunRecord {
   endedAt: string;
   seed: number;
   won: boolean;
+  cheated?: boolean;
   levelsCompleted: number;
   totalScore: number;
   finalPoolSize: number;

@@ -5,6 +5,7 @@ import { SeededRNG, randomSeed, generateId } from '../utils/random.ts';
 import { generateMap } from './map.ts';
 import { createStartingPool } from './pool.ts';
 import { createRiver, dealInitialHand } from './river.ts';
+import { scoreHand } from './scoring.ts';
 
 export function createInitialGameState(): GameState {
   return {
@@ -142,14 +143,28 @@ export function startEncounter(
 
   // Create river (starts empty) and deal initial hand from deck
   const emptyRiver = createRiver(encounterDeck);
-  const { river, hand } = dealInitialHand(emptyRiver, maxSize);
+  let { river: currentRiver, hand: currentHand } = dealInitialHand(emptyRiver, maxSize);
+
+  // Anti-highroll: if initial hand already beats the target score, reshuffle and redeal
+  const maxRedraws = 3;
+  for (let i = 0; i < maxRedraws; i++) {
+    const score = scoreHand(currentHand.cards, state.relics, encounter.modifiers ?? []);
+    if (score.totalScore <= encounter.scoreThreshold) break;
+
+    const allCards = [...currentHand.cards, ...currentRiver.cards, ...currentRiver.deck];
+    const reshuffled = rng.shuffle(allCards);
+    const freshRiver = createRiver(reshuffled);
+    const result = dealInitialHand(freshRiver, maxSize);
+    currentRiver = result.river;
+    currentHand = result.hand;
+  }
 
   return {
     ...state,
     phase: 'player_turn',
     encounter,
-    river,
-    hand,
+    river: currentRiver,
+    hand: currentHand,
     discardPile: [],
     turnsRemaining: 0,
     turnPhase: 'draw',

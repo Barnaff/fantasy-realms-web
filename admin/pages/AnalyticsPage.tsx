@@ -49,7 +49,10 @@ export default function AnalyticsPage() {
         const q = query(collection(db, 'runRecords'), limit(100));
         const snap = await getDocs(q);
         const records: RunRecord[] = [];
-        snap.forEach((d) => records.push(d.data() as RunRecord));
+        snap.forEach((d) => {
+          const r = d.data() as RunRecord;
+          if (!r.cheated) records.push(r);
+        });
         records.sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
         setRuns(records);
       } catch (err) {

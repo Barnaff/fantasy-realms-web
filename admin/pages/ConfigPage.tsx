@@ -12,6 +12,7 @@ interface GameConfig {
   startingPoolSize: number;
   maxRiverDiscards: number;
   handSize: number;
+  maxHandRedraws: number;
 }
 
 const DEFAULT_CONFIG: GameConfig = {
@@ -20,6 +21,7 @@ const DEFAULT_CONFIG: GameConfig = {
   startingPoolSize: 10,
   maxRiverDiscards: 3,
   handSize: 7,
+  maxHandRedraws: 3,
 };
 
 export default function ConfigPage() {
@@ -145,6 +147,16 @@ export default function ConfigPage() {
               type="number"
               value={config.handSize}
               onChange={(e) => setConfig({ ...config, handSize: Number(e.target.value) })}
+            />
+          </div>
+          <div className="config-field">
+            <label>Max Hand Redraws</label>
+            <input
+              type="number"
+              min={0}
+              max={10}
+              value={config.maxHandRedraws}
+              onChange={(e) => setConfig({ ...config, maxHandRedraws: Number(e.target.value) })}
             />
           </div>
         </div>

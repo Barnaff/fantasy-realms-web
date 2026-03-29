@@ -32,6 +32,7 @@ export default function HandsHistoryPage() {
         const flat: FlatLevel[] = [];
         snap.forEach((d) => {
           const r = d.data() as RunRecord;
+          if (r.cheated) return;
           for (const l of (r.levels || [])) {
             flat.push({ ...l, runId: r.id, runWon: r.won, runSeed: r.seed });
           }

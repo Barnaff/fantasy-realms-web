@@ -3,9 +3,6 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../../src/firebase/config';
 
-const GEMINI_API_KEY = 'AIzaSyArgIQ_Cd3nM60yYIuNJpGpA2xMgDemkEA';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${GEMINI_API_KEY}`;
-
 const TAG_COLORS: Record<string, string> = {
   Beast: '#22c55e', Fire: '#ef4444', Weather: '#60a5fa',
   Leader: '#c9a227', Weapon: '#9ca3af', Land: '#854d0e',
@@ -86,6 +83,20 @@ export default function ArtGeneratorPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const abortRef = useRef(false);
+  const [provider, setProvider] = useState<'pollinations' | 'gemini'>(() => (localStorage.getItem('art_provider') as 'pollinations' | 'gemini') || 'pollinations');
+  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('gemini_api_key') ?? '');
+  const [showKeyInput, setShowKeyInput] = useState(false);
+
+  const switchProvider = useCallback((p: 'pollinations' | 'gemini') => {
+    setProvider(p);
+    localStorage.setItem('art_provider', p);
+  }, []);
+
+  const saveGeminiKey = useCallback((key: string) => {
+    setGeminiKey(key);
+    localStorage.setItem('gemini_api_key', key);
+    setShowKeyInput(false);
+  }, []);
 
   // Load cards
   useEffect(() => {
@@ -157,7 +168,64 @@ export default function ArtGeneratorPage() {
     });
   }, []);
 
-  // Generate image for a single card
+  // Generate via Pollinations (free, no key needed)
+  const generateViaPollinations = useCallback(async (prompt: string): Promise<string> => {
+    const encodedPrompt = encodeURIComponent(prompt);
+    const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=512&nologo=true&seed=${Date.now()}`;
+
+    // Retry on 429 with backoff
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      response = await fetch(url);
+      if (response.status !== 429) break;
+      await new Promise(r => setTimeout(r, (attempt + 1) * 10_000));
+    }
+
+    if (!response || !response.ok) {
+      throw new Error(`Pollinations ${response?.status}: ${response?.statusText}`);
+    }
+
+    const blob = await response.blob();
+    const buffer = await blob.arrayBuffer();
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+  }, []);
+
+  // Generate via Gemini (requires API key)
+  const generateViaGemini = useCallback(async (prompt: string, id: string): Promise<string> => {
+    if (!geminiKey) throw new Error('No Gemini API key — click "Set API Key" first');
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiKey}`;
+    const body = JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+    });
+
+    // Retry on 429 with backoff
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      if (response.status !== 429) break;
+      const wait = (attempt + 1) * 15_000;
+      updateState(id, { status: 'generating', error: `Rate limited, retrying in ${wait / 1000}s...` });
+      await new Promise(r => setTimeout(r, wait));
+    }
+
+    if (!response || !response.ok) {
+      const err = response ? await response.text() : 'No response';
+      throw new Error(`API ${response?.status}: ${err.slice(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find((p: Record<string, unknown>) => p.inlineData);
+    if (!imagePart?.inlineData?.data) throw new Error('No image in response');
+    return imagePart.inlineData.data;
+  }, [geminiKey, updateState]);
+
+  // Generate image for a single card (dispatches to active provider)
   const generateImage = useCallback(async (id: string) => {
     const state = artStates.get(id);
     if (!state) return;
@@ -166,41 +234,18 @@ export default function ArtGeneratorPage() {
 
     try {
       const fullPrompt = globalPrefix ? `${globalPrefix}\n\n${state.prompt}` : state.prompt;
-      const response = await fetch(GEMINI_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: fullPrompt }] }],
-          generationConfig: {
-            responseModalities: ['TEXT', 'IMAGE'],
-          },
-        }),
-      });
+      const imageData = provider === 'pollinations'
+        ? await generateViaPollinations(fullPrompt)
+        : await generateViaGemini(fullPrompt, id);
 
-      if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`API ${response.status}: ${err.slice(0, 200)}`);
-      }
-
-      const data = await response.json();
-      const parts = data.candidates?.[0]?.content?.parts || [];
-      const imagePart = parts.find((p: Record<string, unknown>) => p.inlineData);
-
-      if (!imagePart?.inlineData?.data) {
-        throw new Error('No image in response');
-      }
-
-      updateState(id, {
-        status: 'done',
-        imageData: imagePart.inlineData.data,
-      });
+      updateState(id, { status: 'done', imageData });
     } catch (err: unknown) {
       updateState(id, {
         status: 'error',
         error: err instanceof Error ? err.message : 'Unknown error',
       });
     }
-  }, [artStates, updateState, globalPrefix]);
+  }, [artStates, updateState, globalPrefix, provider, generateViaPollinations, generateViaGemini]);
 
   // Upload image to Firebase Storage
   const uploadImage = useCallback(async (id: string) => {
@@ -278,8 +323,8 @@ export default function ArtGeneratorPage() {
         }
       }
 
-      // Rate limit: wait 3s between requests
-      if (i < ids.length - 1) await new Promise(r => setTimeout(r, 3000));
+      // Rate limit: wait 10s between requests (free tier is ~2-10 RPM for image gen)
+      if (i < ids.length - 1) await new Promise(r => setTimeout(r, 10_000));
     }
 
     setIsGenerating(false);
@@ -382,9 +427,50 @@ export default function ArtGeneratorPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h2 style={{ margin: '0 0 8px 0', fontSize: 22 }}>🎨 Art Generator</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, fontSize: 22 }}>🎨 Art Generator</h2>
+        <div style={{ display: 'flex', gap: 2, background: '#e5e7eb', borderRadius: 6, padding: 2 }}>
+          {(['pollinations', 'gemini'] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => switchProvider(p)}
+              style={{
+                padding: '3px 10px', fontSize: 11, fontWeight: 600, border: 'none', borderRadius: 4, cursor: 'pointer',
+                background: provider === p ? '#fff' : 'transparent',
+                color: provider === p ? '#111' : '#888',
+                boxShadow: provider === p ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+              }}
+            >{p === 'pollinations' ? '🌸 Pollinations (Free)' : '✨ Gemini'}</button>
+          ))}
+        </div>
+        {provider === 'gemini' && (
+          geminiKey && !showKeyInput ? (
+            <span
+              style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, cursor: 'pointer' }}
+              onClick={() => setShowKeyInput(true)}
+              title="Click to change API key"
+            >✓ API Key Set</span>
+          ) : (
+            <form style={{ display: 'flex', alignItems: 'center', gap: 6 }} onSubmit={e => {
+              e.preventDefault();
+              const input = e.currentTarget.querySelector('input') as HTMLInputElement;
+              if (input.value.trim()) saveGeminiKey(input.value.trim());
+            }}>
+              <input
+                type="password"
+                placeholder="Gemini API Key"
+                defaultValue={geminiKey}
+                style={{ padding: '3px 8px', fontSize: 12, border: '1px solid #d1d5db', borderRadius: 4, width: 220 }}
+                autoFocus
+              />
+              <button type="submit" style={{ padding: '3px 10px', fontSize: 12, background: '#4285F4', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Save</button>
+              {geminiKey && <button type="button" onClick={() => setShowKeyInput(false)} style={{ padding: '3px 8px', fontSize: 12, background: '#e5e7eb', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>}
+            </form>
+          )
+        )}
+      </div>
       <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>
-        Generate card artwork using Gemini AI. Select cards, review prompts, generate images, then upload to Firebase Storage.
+        Generate card artwork using {provider === 'pollinations' ? 'Pollinations AI (FLUX, free & unlimited)' : 'Gemini AI'}. Select cards, review prompts, generate images, then upload to Firebase Storage.
       </p>
 
       {/* Global prompt prefix */}
