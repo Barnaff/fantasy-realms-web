@@ -61,7 +61,11 @@
       "Bash(where gcloud:*)",
       "Bash(npx firebase:*)",
       "Bash(C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe \"C:/Users/kobic/AppData/Roaming/npm/node_modules/firebase-tools/lib/bin/firebase.js\" projects:list)",
-      "Bash(C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe \"C:/Users/kobic/AppData/Roaming/npm/node_modules/firebase-tools/lib/bin/firebase.js\" storage:cors set cors.json --project fantasy-realms-web)"
+      "Bash(C:/Users/kobic/AppData/Roaming/fnm/node-versions/v22.22.0/installation/node.exe \"C:/Users/kobic/AppData/Roaming/npm/node_modules/firebase-tools/lib/bin/firebase.js\" storage:cors set cors.json --project fantasy-realms-web)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

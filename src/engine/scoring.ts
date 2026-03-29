@@ -307,7 +307,7 @@ export function scoreHand(
     }
 
     const bonuses: { source: string; description: string; value: number }[] = [];
-    const penalties: { source: string; description: string; value: number }[] = [];
+    const penalties: { source: string; description: string; value: number; cleared?: boolean }[] = [];
 
     const resolvedOrGroups = new Set<string>();
 
