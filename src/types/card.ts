@@ -36,6 +36,7 @@ export interface ScoringEffect {
   description: string;
   effectId: string;
   params: Record<string, unknown>;
+  orGroup?: string;
 }
 
 export interface DiscardEffect {

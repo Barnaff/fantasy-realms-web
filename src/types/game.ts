@@ -38,7 +38,7 @@ export interface ScoreBreakdownEntry {
   cardName: string;
   baseValue: number;
   bonuses: { source: string; description: string; value: number }[];
-  penalties: { source: string; description: string; value: number }[];
+  penalties: { source: string; description: string; value: number; cleared?: boolean }[];
   blanked: boolean;
   finalValue: number;
 }
@@ -47,6 +47,7 @@ export interface ScoreResult {
   totalScore: number;
   breakdown: ScoreBreakdownEntry[];
   relicBonuses: { relicName: string; value: number }[];
+  clearedTags?: string[];
 }
 
 export interface EncounterModifier {

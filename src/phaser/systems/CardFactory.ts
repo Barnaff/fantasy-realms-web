@@ -14,8 +14,9 @@ export class CardFactory {
     x: number = 0,
     y: number = 0,
     scale: number = 1,
+    clearedTags?: Set<string>,
   ): CardObject {
-    return new CardObject(scene, x, y, card, scale);
+    return new CardObject(scene, x, y, card, scale, clearedTags);
   }
 
   /** Create a CardObject from a CardInstance, resolving it first. */
@@ -25,8 +26,9 @@ export class CardFactory {
     x: number = 0,
     y: number = 0,
     scale: number = 1,
+    clearedTags?: Set<string>,
   ): CardObject {
     const resolved = resolveCard(instance);
-    return new CardObject(scene, x, y, resolved, scale);
+    return new CardObject(scene, x, y, resolved, scale, clearedTags);
   }
 }

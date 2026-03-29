@@ -13,6 +13,7 @@ import { GameOverScene } from './phaser/scenes/GameOverScene.ts';
 import { DraftScene } from './phaser/scenes/DraftScene.ts';
 import { PoolViewerScene } from './phaser/scenes/PoolViewerScene.ts';
 import { COLORS } from './config.ts';
+import './console.ts';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,

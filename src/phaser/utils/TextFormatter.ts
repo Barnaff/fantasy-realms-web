@@ -131,12 +131,16 @@ export function createRichEffectText(
   maxWidth: number,
   isPenalty: boolean,
   resolution = 1,
-): Phaser.GameObjects.Text[] {
+  clearedTags?: Set<string>,
+): Phaser.GameObjects.GameObject[] {
   const baseColor = isPenalty ? '#8b2500' : '#1a1a1a';
   const segments = parseEffectText(description, baseColor);
 
+  // Mark segments as struck through if their tag is cleared (only for penalty effects)
+  const tagSet = clearedTags && isPenalty ? clearedTags : undefined;
+
   // First pass: measure total width
-  const tempTexts: { text: string; color: string; bold: boolean; width: number }[] = [];
+  const tempTexts: { text: string; color: string; bold: boolean; width: number; height: number; strikethrough: boolean }[] = [];
   let totalW = 0;
 
   for (const seg of segments) {
@@ -147,7 +151,8 @@ export function createRichEffectText(
       fontStyle: seg.bold ? 'bold' : '',
       resolution,
     });
-    tempTexts.push({ ...seg, width: t.width });
+    const isCleared = tagSet ? TAG_VARIATIONS.some(tv => tagSet.has(tv.tag) && tv.pattern.test(seg.text)) : false;
+    tempTexts.push({ ...seg, width: t.width, height: t.height, strikethrough: isCleared });
     totalW += t.width;
     t.destroy();
   }
@@ -168,17 +173,26 @@ export function createRichEffectText(
   // Second pass: position segments centered
   const startX = centerX - totalW / 2;
   let curX = startX;
-  const result: Phaser.GameObjects.Text[] = [];
+  const result: Phaser.GameObjects.GameObject[] = [];
 
   for (const seg of tempTexts) {
     const t = scene.add.text(curX, y, seg.text, {
       fontFamily: FONTS.card,
       fontSize: fontSize + 'px',
-      color: seg.color,
+      color: seg.strikethrough ? '#bbb' : seg.color,
       fontStyle: seg.bold ? 'bold' : '',
       resolution,
     });
     result.push(t);
+
+    // Draw strikethrough line for cleared tags
+    if (seg.strikethrough) {
+      const line = scene.add.graphics();
+      line.lineStyle(1, 0xcc0000, 0.8);
+      line.lineBetween(curX, y + seg.height / 2, curX + seg.width, y + seg.height / 2);
+      result.push(line);
+    }
+
     curX += seg.width;
   }
 

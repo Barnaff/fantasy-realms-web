@@ -274,12 +274,12 @@ export const CARD_DEFS: CardDef[] = [
     id: 'high-priestess',
     name: 'High Priestess',
     tags: ['Leader'],
-    baseValue: 10,
+    baseValue: 12,
     rarity: 'starting',
     flavor: 'Her prayers bend the fabric of what is possible.',
     scoringEffects: [
-      { description: '+10 for each Army in hand', effectId: 'bonusPerTag', params: { tag: 'Army', bonus: 10 } },
-      { description: '-5 for each other Leader in hand', effectId: 'penaltyPerTag', params: { tag: 'Leader', penalty: -5 } },
+      { description: '+24 with Holy Relic', effectId: 'bonusIfCardPresent', params: { cardId: 'holy-relic', bonus: 24 }, orGroup: 'primary' },
+      { description: '+10 if no Undead', effectId: 'bonusIfTagAbsent', params: { tag: 'Undead', bonus: 10 }, orGroup: 'primary' },
     ],
     discardEffect: null,
   },
@@ -291,8 +291,7 @@ export const CARD_DEFS: CardDef[] = [
     rarity: 'starting',
     flavor: 'He measures wealth in swords, not gold.',
     scoringEffects: [
-      { description: '+10 for each Army in hand (represents adding their base strengths)', effectId: 'bonusPerTag', params: { tag: 'Army', bonus: 10 } },
-      { description: '-4 for each Weather in hand', effectId: 'penaltyPerTag', params: { tag: 'Weather', penalty: -4 } },
+      { description: '+ the base score of all Armies', effectId: 'sumBaseValueOfTag', params: { tag: 'Army' } },
     ],
     discardEffect: null,
   },
@@ -646,6 +645,7 @@ export const CARD_DEFS: CardDef[] = [
     flavor: 'They read the land the way scholars read books.',
     scoringEffects: [
       { description: '+10 for each Land card in hand', effectId: 'bonusPerTag', params: { tag: 'Land', bonus: 10 } },
+      { description: 'Clears Army from all penalties', effectId: 'clearTagFromPenalties', params: { tag: 'Army' } },
     ],
     discardEffect: null,
   },

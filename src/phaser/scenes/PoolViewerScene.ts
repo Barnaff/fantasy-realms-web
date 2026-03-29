@@ -326,7 +326,7 @@ export class PoolViewerScene extends Phaser.Scene {
 
     this.clearHover();
 
-    const previewScale = 1.1;
+    const previewScale = 1.8;
     const previewH = CARD.HEIGHT * previewScale;
     const { width, height } = this.scale;
     let px = Phaser.Math.Clamp(pointer.x, CARD.WIDTH * previewScale / 2 + 20, width - CARD.WIDTH * previewScale / 2 - 20);

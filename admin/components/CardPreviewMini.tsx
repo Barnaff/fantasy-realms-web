@@ -127,14 +127,29 @@ export function CardPreviewMini({ card, width = 120, showEffects = true, blanked
         }}>
           {card.scoringEffects.map((eff, i) => {
             const isNeg = eff.effectId.includes('penalty') || eff.effectId.includes('blank');
+            const prevEff = i > 0 ? card.scoringEffects[i - 1] : undefined;
+            const showOr = prevEff?.orGroup && eff.orGroup && prevEff.orGroup === eff.orGroup;
             return (
-              <div key={i} style={{
-                fontSize: 7 * scale,
-                color: isNeg ? '#dc2626' : '#166534',
-                lineHeight: 1.3,
-              }}>
-                {eff.description}
-              </div>
+              <React.Fragment key={i}>
+                {showOr && (
+                  <div style={{
+                    fontSize: 6 * scale,
+                    color: '#a09070',
+                    fontStyle: 'italic',
+                    lineHeight: 1.3,
+                    textAlign: 'center',
+                  }}>
+                    - or -
+                  </div>
+                )}
+                <div style={{
+                  fontSize: 7 * scale,
+                  color: isNeg ? '#dc2626' : '#166534',
+                  lineHeight: 1.3,
+                }}>
+                  {eff.description}
+                </div>
+              </React.Fragment>
             );
           })}
         </div>

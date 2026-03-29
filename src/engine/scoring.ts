@@ -143,6 +143,22 @@ const scoringRegistry: Record<string, ScoringFn> = {
     // This is handled specially in scoreHand.
     return 0;
   },
+
+  sumBaseValueOfTag: (self, hand, params) => {
+    const tag = params.tag as Tag;
+    let sum = 0;
+    for (const c of hand) {
+      if (c.instanceId !== self.instanceId && c.tags.includes(tag)) {
+        sum += CARD_DEF_MAP.get(c.defId)?.baseValue ?? 0;
+      }
+    }
+    return sum;
+  },
+
+  clearTagFromPenalties: (_self, _hand, _params) => {
+    // Utility effect — actual logic is handled in the scoreHand pre-pass.
+    return 0;
+  },
 };
 
 // --- Blanking Registry ---
@@ -263,6 +279,17 @@ export function scoreHand(
     }
   }
 
+  // Collect tags cleared from penalties (clearTagFromPenalties effects on non-blanked cards)
+  const clearedTags = new Set<Tag>();
+  for (const card of resolved) {
+    if (blankedInstanceIds.has(card.instanceId)) continue;
+    for (const effect of card.scoringEffects) {
+      if (effect.effectId === 'clearTagFromPenalties') {
+        clearedTags.add(effect.params.tag as Tag);
+      }
+    }
+  }
+
   // Score each card
   const breakdown: ScoreBreakdownEntry[] = resolved.map(card => {
     const blanked = blankedInstanceIds.has(card.instanceId);
@@ -282,13 +309,31 @@ export function scoreHand(
     const bonuses: { source: string; description: string; value: number }[] = [];
     const penalties: { source: string; description: string; value: number }[] = [];
 
+    const resolvedOrGroups = new Set<string>();
+
     for (const effect of card.scoringEffects) {
-      if (['blankTag', 'blankIfTagAbsent', 'blankSpecificCard', 'blankIfTagPresent', 'copyTagsOfHighest'].includes(effect.effectId)) continue;
+      if (['blankTag', 'blankIfTagAbsent', 'blankSpecificCard', 'blankIfTagPresent', 'copyTagsOfHighest', 'clearTagFromPenalties'].includes(effect.effectId)) continue;
+
+      // orGroup: skip if an earlier effect in the same group already scored
+      if (effect.orGroup && resolvedOrGroups.has(effect.orGroup)) continue;
+
+      // clearTagFromPenalties: skip penalty effects whose tag is cleared
+      const isPenalty = effect.effectId.startsWith('penalty');
+      if (isPenalty && effect.params.tag && clearedTags.has(effect.params.tag as Tag)) {
+        penalties.push({ source: card.name, description: effect.description, value: 0, cleared: true });
+        continue;
+      }
 
       const fn = scoringRegistry[effect.effectId];
       if (!fn) continue;
 
       const value = fn(card, resolved, effect.params);
+
+      // orGroup: mark group as resolved only if this effect produced a non-zero value
+      if (effect.orGroup && value !== 0) {
+        resolvedOrGroups.add(effect.orGroup);
+      }
+
       if (value > 0) {
         bonuses.push({ source: card.name, description: effect.description, value });
       } else if (value < 0) {
@@ -355,5 +400,10 @@ export function scoreHand(
     }
   }
 
-  return { totalScore, breakdown, relicBonuses };
+  return {
+    totalScore,
+    breakdown,
+    relicBonuses,
+    ...(clearedTags.size > 0 ? { clearedTags: [...clearedTags] } : {}),
+  };
 }

@@ -54,6 +54,8 @@ export class EncounterScene extends Phaser.Scene {
   private scorePanelY = 0;
   private handBottomY = 0;
   private riverStartY = 0;
+  private layoutW = 0;
+  private layoutOffsetX = 0;
 
   // --- River hover state ---
   private hoveredRiverIndex = -1;
@@ -90,6 +92,9 @@ export class EncounterScene extends Phaser.Scene {
     this.gm = GameManager.getInstance();
     this.width = this.scale.width;
     this.height = this.scale.height;
+    const bounds = LayoutHelper.getLayoutBounds(this.width, this.height);
+    this.layoutW = bounds.layoutW;
+    this.layoutOffsetX = bounds.offsetX;
     this.scales = LayoutHelper.getScales(this.width, this.height);
 
     this.cameras.main.setBackgroundColor(COLORS.parchment100);
@@ -117,6 +122,11 @@ export class EncounterScene extends Phaser.Scene {
     this.boundOnHandChanged = (_s: GameState) => this.onHandChanged();
     this.gm.events.on('stateChanged', this.boundOnStateChanged);
     this.gm.events.on('handChanged', this.boundOnHandChanged);
+
+    // Cheats panel (localhost only)
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+      this.createCheatsPanel();
+    }
 
     // Cleanup on scene shutdown
     this.events.on('shutdown', this.cleanup, this);
@@ -229,14 +239,14 @@ export class EncounterScene extends Phaser.Scene {
 
   private createRiverZone(): void {
     // River label
-    this.riverLabel = this.add.text(10, this.riverStartY, '', {
+    this.riverLabel = this.add.text(this.layoutOffsetX + 10, this.riverStartY, '', {
       fontFamily: FONTS.body,
       fontSize: '10px',
       color: '#6b5c4e',
     });
 
     // Deck pile (no Phaser interactive — taps handled at scene level)
-    const deckX = 10 + CARD.WIDTH * this.scales.river / 2 + 4;
+    const deckX = this.layoutOffsetX + 10 + CARD.WIDTH * this.scales.river / 2 + 4;
     const deckY = this.riverStartY + 18 + CARD.HEIGHT * this.scales.river / 2;
     const deckCount = this.gm.state.river?.deck.length ?? 0;
     this.deckPile = new DeckPileObject(this, deckX, deckY, deckCount, this.scales.river);
@@ -263,9 +273,9 @@ export class EncounterScene extends Phaser.Scene {
     if (riverCards.length === 0) return;
 
     // Grid layout: start after deck pile
-    const deckRight = 10 + CARD.WIDTH * this.scales.river + 16;
+    const deckRight = this.layoutOffsetX + 10 + CARD.WIDTH * this.scales.river + 16;
     const gridY = this.riverStartY + 18;
-    const maxCols = Math.max(1, Math.floor((this.width - deckRight - 10) / (CARD.WIDTH * this.scales.river + 6)));
+    const maxCols = Math.max(1, Math.floor((this.layoutW - 10 - CARD.WIDTH * this.scales.river - 16 - 10) / (CARD.WIDTH * this.scales.river + 6)));
     const positions = LayoutHelper.gridLayout(
       riverCards.length,
       deckRight,
@@ -516,13 +526,13 @@ export class EncounterScene extends Phaser.Scene {
   // ═══════════════════════════════════════════════════════
 
   private createScorePanel(): void {
-    this.scoreText = this.add.text(14, this.scorePanelY, 'Score: 0', {
+    this.scoreText = this.add.text(this.layoutOffsetX + 14, this.scorePanelY, 'Score: 0', {
       fontFamily: FONTS.display,
       fontSize: '14px',
       color: '#2c1810',
     });
 
-    this.finalizeBtn = new ButtonObject(this, this.width - 90, this.scorePanelY + 10, 'Finalize', {
+    this.finalizeBtn = new ButtonObject(this, this.layoutOffsetX + this.layoutW - 90, this.scorePanelY + 10, 'Finalize', {
       width: 120,
       height: 32,
       fontSize: '13px',
@@ -531,7 +541,7 @@ export class EncounterScene extends Phaser.Scene {
     });
 
     // View Deck button
-    const deckLabel = this.add.text(this.width - 14, this.scorePanelY + 36, '📋 Deck', {
+    const deckLabel = this.add.text(this.layoutOffsetX + this.layoutW - 14, this.scorePanelY + 36, '📋 Deck', {
       fontFamily: FONTS.body,
       fontSize: '10px',
       color: '#8a7a5c',
@@ -558,13 +568,13 @@ export class EncounterScene extends Phaser.Scene {
     if (result && result.breakdown.length > 0) {
       const startY = this.scorePanelY + 22;
       const cols = Math.min(result.breakdown.length, 4);
-      const colW = Math.min(160, (this.width - 20) / cols);
+      const colW = Math.min(160, (this.layoutW - 20) / cols);
 
       for (let i = 0; i < result.breakdown.length; i++) {
         const entry = result.breakdown[i];
         const col = i % cols;
         const row = Math.floor(i / cols);
-        const x = 14 + col * colW;
+        const x = this.layoutOffsetX + 14 + col * colW;
         const y = startY + row * 13;
 
         const name = entry.cardName.length > 12 ? entry.cardName.slice(0, 11) + '…' : entry.cardName;
@@ -690,7 +700,7 @@ export class EncounterScene extends Phaser.Scene {
 
   private createHandZone(): void {
     const handY = this.handBottomY - CARD.HEIGHT * this.scales.hand - 30;
-    this.handLabel = this.add.text(10, handY, '', {
+    this.handLabel = this.add.text(this.layoutOffsetX + 10, handY, '', {
       fontFamily: FONTS.body,
       fontSize: '10px',
       color: '#6b5c4e',
@@ -798,9 +808,10 @@ export class EncounterScene extends Phaser.Scene {
       this.scales.hand,
     );
 
-    // Get live score to know which cards are blanked
+    // Get live score to know which cards are blanked and which tags are cleared
     const liveScore = this.gm.getLiveScore();
     const blankedCardIds = new Set<string>();
+    const clearedTags = new Set<string>(liveScore?.clearedTags ?? []);
     if (liveScore) {
       for (const entry of liveScore.breakdown) {
         if (entry.blanked) blankedCardIds.add(entry.cardId);
@@ -810,7 +821,7 @@ export class EncounterScene extends Phaser.Scene {
     for (let i = 0; i < handCards.length; i++) {
       const resolved = resolveCard(handCards[i]);
       const pos = this.handPositions[i];
-      const card = CardFactory.create(this, resolved, pos.x, pos.y, this.scales.hand);
+      const card = CardFactory.create(this, resolved, pos.x, pos.y, this.scales.hand, clearedTags.size > 0 ? clearedTags : undefined);
       card.setRotation(pos.rotation);
       card.setDepth(i);
 
@@ -1238,6 +1249,54 @@ export class EncounterScene extends Phaser.Scene {
     // Also refresh river since draw removes a card from it
     this.refreshRiver();
     this.refreshHeader();
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  CHEATS PANEL (localhost only)
+  // ═══════════════════════════════════════════════════════
+
+  private createCheatsPanel(): void {
+    const panelX = 6;
+    const panelY = this.height - 44;
+    const btnW = 70;
+    const btnH = 28;
+    const gap = 4;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.6);
+    bg.fillRoundedRect(panelX - 4, panelY - 4, (btnW + gap) * 3 + gap + 4, btnH + 8, 6);
+    bg.setDepth(400);
+
+    const makeBtn = (x: number, label: string, color: number, onClick: () => void) => {
+      const btn = this.add.graphics();
+      btn.fillStyle(color, 0.9);
+      btn.fillRoundedRect(0, 0, btnW, btnH, 4);
+      btn.setPosition(x, panelY);
+      btn.setDepth(401);
+      btn.setInteractive(new Phaser.Geom.Rectangle(0, 0, btnW, btnH), Phaser.Geom.Rectangle.Contains);
+      btn.on('pointerdown', onClick);
+
+      const txt = this.add.text(x + btnW / 2, panelY + btnH / 2, label, {
+        fontFamily: FONTS.body,
+        fontSize: '11px',
+        color: '#ffffff',
+      }).setOrigin(0.5).setDepth(402);
+
+      return { btn, txt };
+    };
+
+    let x = panelX;
+    makeBtn(x, 'Win', 0x22c55e, () => {
+      this.gm.cheatWin();
+    });
+    x += btnW + gap;
+    makeBtn(x, 'Lose', 0xc4433a, () => {
+      this.gm.cheatLose();
+    });
+    x += btnW + gap;
+    makeBtn(x, 'Reroll', 0x3b82f6, () => {
+      this.gm.cheatRerollHand();
+    });
   }
 
   // ═══════════════════════════════════════════════════════

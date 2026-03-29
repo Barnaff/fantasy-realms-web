@@ -19,6 +19,7 @@ export class CardObject extends Phaser.GameObjects.Container {
   private artImage: Phaser.GameObjects.Image | null = null;
   private glowParticles: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   private cardScale: number;
+  private _clearedTags?: Set<string>;
 
   constructor(
     scene: Phaser.Scene,
@@ -26,9 +27,11 @@ export class CardObject extends Phaser.GameObjects.Container {
     y: number,
     card: ResolvedCard,
     cardScale?: number,
+    clearedTags?: Set<string>,
   ) {
     super(scene, x, y);
     this.card = card;
+    this._clearedTags = clearedTags;
 
     const W = CARD.WIDTH;
     const H = CARD.HEIGHT;
@@ -149,15 +152,34 @@ export class CardObject extends Phaser.GameObjects.Container {
       if (curEffectY >= maxEffectBottom) break;
 
       const effect = grouped[i];
+
+      // "- or -" separator between orGroup effects
+      if (effect.isSeparator) {
+        const sep = scene.add.text(0, curEffectY, '- or -', {
+          fontFamily: FONTS.body,
+          fontSize: `${effectFontSize - 1}px`,
+          color: '#a09070',
+          fontStyle: 'italic',
+          resolution: RES,
+        }).setOrigin(0.5, 0);
+        scene.children.remove(sep);
+        this.add(sep);
+        curEffectY += (sep.height || 8) + 1;
+        continue;
+      }
+
       const penalty = isPenaltyEffect(effect);
       const textObjs = createRichEffectText(
         scene, 0, curEffectY,
         effect.description, effectFontSize, maxEffectWidth, penalty, RES,
+        this._clearedTags,
       );
 
       let maxH = 0;
       for (const t of textObjs) {
-        maxH = Math.max(maxH, t.height);
+        if (t instanceof Phaser.GameObjects.Text) {
+          maxH = Math.max(maxH, t.height);
+        }
         scene.children.remove(t);
       }
 

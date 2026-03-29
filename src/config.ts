@@ -45,6 +45,10 @@ export const FONTS = {
   card: 'Nunito, Segoe UI, Arial, sans-serif',
 } as const;
 
+export const LAYOUT = {
+  MAX_WIDTH: 1200,
+} as const;
+
 export const DURATION = {
   cardDraw: 400,
   cardDiscard: 300,

@@ -1,4 +1,4 @@
-import { CARD } from '../../config.ts';
+import { CARD, LAYOUT } from '../../config.ts';
 
 export interface FanPosition {
   x: number;
@@ -86,25 +86,33 @@ export class LayoutHelper {
   }
 
   /**
+   * Get the constrained layout rectangle centered within the viewport.
+   * Use layoutW instead of raw width for card layout math.
+   * Use cx as the center x coordinate for centering elements.
+   */
+  static getLayoutBounds(width: number, height: number) {
+    const layoutW = Math.min(width, LAYOUT.MAX_WIDTH);
+    const offsetX = (width - layoutW) / 2;
+    const cx = width / 2;
+    return { layoutW, offsetX, cx, height, width };
+  }
+
+  /**
    * Get responsive card scales based on game dimensions.
+   * Uses the constrained layout width for consistent sizing.
    */
   static getScales(width: number, height: number): { hand: number; river: number } {
-    const isNarrow = width < 500;
-    const isShort = height < 700;
+    const layoutW = Math.min(width, LAYOUT.MAX_WIDTH);
 
-    let hand = 1.2;
-    let river = 1.25;
+    // Height-based scaling for consistent card proportions
+    const hScale = height / 800; // reference height
+    const wScale = layoutW / 700; // reference width
 
-    if (isNarrow || isShort) {
-      hand = 1.0;
-      river = 1.05;
-    }
+    // Use the smaller of height/width scale, clamped to reasonable range
+    const base = Math.min(hScale, wScale);
 
-    // Extra small screens
-    if (width < 380) {
-      hand = 0.85;
-      river = 0.9;
-    }
+    const hand = Math.max(0.75, Math.min(1.3, base * 1.2));
+    const river = Math.max(0.8, Math.min(1.35, base * 1.25));
 
     return { hand, river };
   }

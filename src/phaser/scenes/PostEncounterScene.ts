@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS, CARD } from '../../config.ts';
+import { LayoutHelper } from '../systems/LayoutHelper.ts';
 import { GameManager } from '../systems/GameManager.ts';
 import { CardFactory } from '../systems/CardFactory.ts';
 import { CardObject } from '../gameobjects/CardObject.ts';
@@ -70,7 +71,13 @@ export class PostEncounterScene extends Phaser.Scene {
 
       // Layout options vertically, cards horizontal within each option
       const optionGap = 12;
-      this.baseScale = Math.min(0.9, (width - 80) / (3 * CARD.WIDTH + 20));
+      const bounds = LayoutHelper.getLayoutBounds(width, height);
+      const btnSpace = 110; // space for buttons at bottom
+      const rowPadding = 26; // label + margins per option row
+      const availableH = height - labelY - btnSpace;
+      const maxScaleW = (bounds.layoutW - 80) / (3 * CARD.WIDTH + 20);
+      const maxScaleV = (availableH / cardOptions.length - rowPadding) / CARD.HEIGHT;
+      this.baseScale = Math.min(0.9, maxScaleW, maxScaleV);
       const cardW = CARD.WIDTH * this.baseScale;
       const cardH = CARD.HEIGHT * this.baseScale;
 
@@ -80,7 +87,7 @@ export class PostEncounterScene extends Phaser.Scene {
         const option = cardOptions[oi];
 
         // Option label
-        this.add.text(cx, optionY, option.label, {
+        this.add.text(cx, optionY, `Option ${oi + 1}`, {
           fontFamily: FONTS.body,
           fontSize: '10px',
           color: '#9c8a5c',
@@ -152,7 +159,7 @@ export class PostEncounterScene extends Phaser.Scene {
     }
 
     // ── Select button (hidden until an option is selected) ──
-    const selectBtnY = height * 0.85;
+    const selectBtnY = Math.min(height * 0.85, height - 95);
     const btnW = Math.min(width * 0.6, 240);
 
     this.selectBtn = new ButtonObject(this, cx, selectBtnY, 'Add to Pool', {
@@ -163,14 +170,14 @@ export class PostEncounterScene extends Phaser.Scene {
       onClick: () => {
         if (this.selectedIndex >= 0 && this.selectedIndex < cardOptions.length) {
           gm.selectCardReward(this.selectedIndex);
-          this.scene.start('MapScene');
+          this.scene.start(gm.state.phase === 'game_over' ? 'GameOverScene' : 'MapScene');
         }
       },
     });
     this.selectBtn.setVisible(false);
 
     // ── Skip button ──
-    const skipBtnY = height * 0.93;
+    const skipBtnY = Math.min(height * 0.93, height - 45);
     new ButtonObject(this, cx, skipBtnY, 'Skip Reward', {
       width: btnW,
       height: 40,
@@ -178,7 +185,7 @@ export class PostEncounterScene extends Phaser.Scene {
       fontSize: '14px',
       onClick: () => {
         gm.skipCardReward();
-        this.scene.start('MapScene');
+        this.scene.start(gm.state.phase === 'game_over' ? 'GameOverScene' : 'MapScene');
       },
     });
 

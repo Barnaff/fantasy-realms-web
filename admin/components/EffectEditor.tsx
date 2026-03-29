@@ -16,13 +16,14 @@ export const SCORING_EFFECT_IDS = [
   'bonusPerTag', 'penaltyPerTag', 'bonusIfTagPresent', 'bonusIfTagAbsent',
   'penaltyIfTagAbsent', 'blankTag', 'blankIfTagPresent', 'blankIfTagAbsent',
   'flatBonus', 'flatPenalty', 'bonusIfCardPresent', 'penaltyIfCardPresent',
-  'bonusPerOtherTag', 'clearPenaltiesOnTag', 'copyTagsOfHighest',
+  'bonusPerOtherTag', 'sumBaseValueOfTag', 'clearTagFromPenalties', 'copyTagsOfHighest',
 ] as const;
 
 export interface ScoringEffect {
   description: string;
   effectId: string;
   params: Record<string, unknown>;
+  orGroup?: string;
 }
 
 /* ══════════════════════════════════════════
@@ -168,14 +169,23 @@ const EFFECT_META: Record<string, EffectMeta> = {
     ],
     generateText: p => `+${p.bonus || 0} for each other ${p.tag || '?'} in hand`,
   },
-  clearPenaltiesOnTag: {
-    label: 'Clear Penalties On Tag',
-    category: 'utility',
-    description: 'Removes all penalties from cards with the specified tag.',
+  sumBaseValueOfTag: {
+    label: 'Sum Base Value Of Tag',
+    category: 'bonus',
+    description: 'Adds the base score (card value, no bonuses/penalties) of all other cards with the specified tag.',
     params: [
       { key: 'tag', label: 'Tag', type: 'tag' },
     ],
-    generateText: p => `Clears penalties on all ${p.tag || '?'}`,
+    generateText: p => `+ the base score of all ${p.tag || '?'}`,
+  },
+  clearTagFromPenalties: {
+    label: 'Clear Tag From Penalties',
+    category: 'utility',
+    description: 'Clears the specified tag from all penalty calculations. Penalties targeting this tag score 0.',
+    params: [
+      { key: 'tag', label: 'Tag', type: 'tag' },
+    ],
+    generateText: p => `Clears ${p.tag || '?'} from all penalties`,
   },
   copyTagsOfHighest: {
     label: 'Copy Tags Of Highest',
@@ -290,6 +300,22 @@ export function EffectEditorRow({
           {cat}
         </span>
 
+        <input
+          type="text"
+          placeholder="OR group"
+          value={effect.orGroup || ''}
+          onChange={e => onChange({ ...effect, orGroup: e.target.value || undefined })}
+          style={{
+            ...s.input,
+            width: 80,
+            fontSize: 10,
+            padding: '3px 6px',
+            background: effect.orGroup ? '#fef3c7' : '#fff',
+            borderColor: effect.orGroup ? '#f59e0b' : '#d1d5db',
+          }}
+          title="Effects with the same OR group are mutually exclusive — first non-zero wins"
+        />
+
         <button onClick={() => setShowJson(!showJson)} style={s.iconBtn} title="Show JSON">
           {'{ }'}
         </button>
@@ -381,6 +407,7 @@ export function EffectEditorRow({
             description: displayDesc,
             effectId: effect.effectId,
             params: effect.params,
+            ...(effect.orGroup ? { orGroup: effect.orGroup } : {}),
           }, null, 2)}
         </pre>
       )}

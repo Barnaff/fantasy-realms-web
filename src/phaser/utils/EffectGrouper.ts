@@ -1,9 +1,10 @@
 import type { ScoringEffect } from '../../types/card.ts';
 
-interface GroupedEffect {
+export interface GroupedEffect {
   description: string;
   effectId: string;
   params: Record<string, unknown>;
+  isSeparator?: boolean;
 }
 
 /**
@@ -47,12 +48,25 @@ export function groupEffects(effects: ScoringEffect[]): GroupedEffect[] {
     }
   }
 
-  return result;
+  // Insert "- or -" separators between consecutive orGroup effects
+  const withSeparators: GroupedEffect[] = [];
+  for (let i = 0; i < result.length; i++) {
+    const curr = effects.find(e => e.description === result[i].description);
+    const prev = i > 0 ? effects.find(e => e.description === result[i - 1].description) : undefined;
+    if (prev?.orGroup && curr?.orGroup && prev.orGroup === curr.orGroup) {
+      withSeparators.push({ description: '- or -', effectId: '_separator', params: {}, isSeparator: true });
+    }
+    withSeparators.push(result[i]);
+  }
+
+  return withSeparators;
 }
 
 /** Check if two effects can be grouped (same type + same numeric value, different tags) */
 function canGroup(a: ScoringEffect, b: ScoringEffect): boolean {
   if (a.effectId !== b.effectId) return false;
+  // Never merge effects that belong to an orGroup
+  if (a.orGroup || b.orGroup) return false;
 
   switch (a.effectId) {
     case 'blankTag':
@@ -104,7 +118,7 @@ function mergeGroup(group: ScoringEffect[]): GroupedEffect {
 
     case 'penaltyPerTag':
       return {
-        description: `-${first.params.penalty} for each ${tagList}`,
+        description: `-${Math.abs(first.params.penalty as number)} for each ${tagList}`,
         effectId: first.effectId,
         params: { tags, penalty: first.params.penalty },
       };
@@ -125,7 +139,7 @@ function mergeGroup(group: ScoringEffect[]): GroupedEffect {
 
     case 'penaltyIfTagAbsent':
       return {
-        description: `-${first.params.penalty} unless any ${tagList} is present`,
+        description: `-${Math.abs(first.params.penalty as number)} unless any ${tagList} is present`,
         effectId: first.effectId,
         params: { tags, penalty: first.params.penalty },
       };

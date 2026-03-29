@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS, CARD } from '../../config.ts';
+import { LayoutHelper } from '../systems/LayoutHelper.ts';
 import { GameManager } from '../systems/GameManager.ts';
 import { CardFactory } from '../systems/CardFactory.ts';
 import { resolveCard } from '../../engine/scoring.ts';
@@ -64,7 +65,8 @@ export class ScoringScene extends Phaser.Scene {
     const cardCount = handCards.length;
     const gap = 8;
     // Calculate card scale to fit ~3.5 cards visible, allowing horizontal scroll
-    const cardScale = Math.min(0.85, (width - 20) / (3.2 * CARD.WIDTH));
+    const bounds = LayoutHelper.getLayoutBounds(width, height);
+    const cardScale = Math.min(0.85, (bounds.layoutW - 20) / (3.2 * CARD.WIDTH));
     const cardW = CARD.WIDTH * cardScale;
     const cardH = CARD.HEIGHT * cardScale;
     const colW = cardW + gap;

@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS, CARD } from '../../config.ts';
 import { CARD_DEF_MAP } from '../../data/cards.ts';
-import { RARITY_LABELS } from '../../types/card.ts';
 import { GameManager } from '../systems/GameManager.ts';
 import { CardObject } from '../gameobjects/CardObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
@@ -59,24 +58,26 @@ export class DraftScene extends Phaser.Scene {
 
     // Layout: vertical list of options, each a horizontal row of cards
     // Use river card scale from LayoutHelper for consistency
+    const bounds = LayoutHelper.getLayoutBounds(width, height);
     const scales = LayoutHelper.getScales(width, height);
-    const cardScale = Math.min(scales.river, (width - 80) / (5 * (CARD.WIDTH + 10)));
+    const startY = 75;
+    const btnSpace = 55; // space for button at bottom
+    const rowPadding = 44; // label + margins per row
+    // Scale cards to fit both horizontally and vertically
+    const maxScaleH = (bounds.layoutW - 80) / (5 * (CARD.WIDTH + 10));
+    const availableH = height - startY - btnSpace;
+    const maxScaleV = (availableH / options.length - rowPadding) / CARD.HEIGHT;
+    const cardScale = Math.min(scales.river, maxScaleH, maxScaleV);
     const cardW = CARD.WIDTH * cardScale;
     const cardH = CARD.HEIGHT * cardScale;
     const cardGap = cardW + 10;
-    const rowH = cardH + 44;
-    const startY = 75;
+    const rowH = cardH + rowPadding;
 
     for (let oi = 0; oi < options.length; oi++) {
       const option = options[oi];
       const rowY = startY + oi * rowH;
       const cardCount = option.cardIds.length;
       const rowW = cardCount * cardGap;
-
-      // Rarity summary
-      const rarities = option.cardIds.map(id => CARD_DEF_MAP.get(id)?.rarity || 'common');
-      const rarityCounts = new Map<string, number>();
-      for (const r of rarities) rarityCounts.set(r, (rarityCounts.get(r) || 0) + 1);
 
       // Option background
       const bgPadX = 16;
@@ -97,12 +98,8 @@ export class DraftScene extends Phaser.Scene {
       highlight.setVisible(false);
       this.highlightGraphics.set(option.id, highlight);
 
-      // Option label with rarity summary
-      const labelParts: string[] = [];
-      for (const [r, count] of rarityCounts) {
-        labelParts.push(`${count} ${RARITY_LABELS[r as keyof typeof RARITY_LABELS] || r}`);
-      }
-      this.add.text(bgX + 8, rowY, `Option ${oi + 1}  •  ${cardCount} cards  (${labelParts.join(', ')})`, {
+      // Option label
+      this.add.text(bgX + 8, rowY, `Option ${oi + 1}`, {
         fontFamily: FONTS.body,
         fontSize: '9px',
         color: '#8a7a5c',

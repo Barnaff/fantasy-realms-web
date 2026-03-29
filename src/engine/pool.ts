@@ -34,19 +34,6 @@ function getPoolReferencedCardIds(pool: CardInstance[]): Set<string> {
 }
 
 
-function getRarityLabel(cards: CardDef[]): string {
-  const counts: Record<string, number> = {};
-  for (const c of cards) {
-    const r = c.rarity || 'common';
-    counts[r] = (counts[r] || 0) + 1;
-  }
-  const parts: string[] = [];
-  if (counts.epic) parts.push(`${counts.epic} Epic`);
-  if (counts.rare) parts.push(`${counts.rare} Rare`);
-  if (counts.common) parts.push(`${counts.common} Common`);
-  if (counts.starting) parts.push(`${counts.starting} Starting`);
-  return parts.join(', ');
-}
 
 /**
  * Reward option templates. Each template defines the composition of a reward group.
@@ -157,7 +144,7 @@ function buildOption(
 
   return {
     cards: picked.map(c => c.id),
-    label: `${picked.length} cards (${getRarityLabel(picked)})`,
+    label: `Option`,
   };
 }
 

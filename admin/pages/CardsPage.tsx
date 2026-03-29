@@ -350,17 +350,24 @@ function CardMiniPreview({ card }: { card: Card }) {
       <div style={styles.miniEffects}>
         {(card.scoringEffects || []).map((eff, i) => {
           const isNeg = eff.effectId.includes('penalty') || eff.effectId.includes('blank');
+          const prevEff = i > 0 ? card.scoringEffects[i - 1] : undefined;
+          const showOr = prevEff?.orGroup && eff.orGroup && prevEff.orGroup === eff.orGroup;
           return (
-            <div key={i} style={{
-              fontSize: 9,
-              lineHeight: 1.3,
-              color: isNeg ? '#dc2626' : '#166534',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}>
-              {eff.description || formatEffect(eff)}
-            </div>
+            <React.Fragment key={i}>
+              {showOr && (
+                <div style={{ fontSize: 7, color: '#a09070', fontStyle: 'italic', textAlign: 'center' }}>- or -</div>
+              )}
+              <div style={{
+                fontSize: 9,
+                lineHeight: 1.3,
+                color: isNeg ? '#dc2626' : '#166534',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
+                {eff.description || formatEffect(eff)}
+              </div>
+            </React.Fragment>
           );
         })}
         {card.discardEffect && (
@@ -424,10 +431,17 @@ function CardPreview({ card }: { card: Card }) {
       <div style={styles.previewEffects}>
         {(card.scoringEffects || []).map((eff, i) => {
           const isNeg = eff.effectId.includes('penalty') || eff.effectId.includes('blank');
+          const prevEff = i > 0 ? card.scoringEffects[i - 1] : undefined;
+          const showOr = prevEff?.orGroup && eff.orGroup && prevEff.orGroup === eff.orGroup;
           return (
-            <div key={i} style={{ fontSize: 10, color: isNeg ? '#dc2626' : '#166534', lineHeight: 1.3 }}>
-              {eff.description || formatEffect(eff)}
-            </div>
+            <React.Fragment key={i}>
+              {showOr && (
+                <div style={{ fontSize: 9, color: '#a09070', fontStyle: 'italic', textAlign: 'center' }}>- or -</div>
+              )}
+              <div style={{ fontSize: 10, color: isNeg ? '#dc2626' : '#166534', lineHeight: 1.3 }}>
+                {eff.description || formatEffect(eff)}
+              </div>
+            </React.Fragment>
           );
         })}
       </div>
