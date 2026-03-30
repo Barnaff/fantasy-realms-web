@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.13.0 — 2026-03-30
+
+### Improvements
+- High-DPI rendering: canvas resolution scales with device pixel ratio (capped at 2x) for crisp visuals on Retina/4K screens
+- Anti-aliasing enabled globally for smoother image and graphics rendering
+- Canvas CSS `image-rendering: auto` for optimal browser scaling
+
+## 0.12.0 — 2026-03-29
+
+### New Features
+- "Or" mechanic: cards can have conditional bonuses — first condition checked, second only if first fails (never both)
+- "Clear Tags" mechanic: nullifies penalties for a specific tag across all cards (e.g., Ranger Scouts clears "Army" penalties)
+- Console commands: in-game developer console for testing (cheat win/lose, reroll hand, add/remove cards)
+- High Priestess reworked: base 12, +24 with Holy Relic OR +10 if no Undead
+- Warlord reworked: base 4, +sum of all base scores of Army cards
+- Ranger Scouts reworked: +10 per Land, clears Army tag from all penalties
+
+### Improvements
+- Removed summary text from new run card selection and level rewards screens
+- Responsive layout: consistent card scaling across all screen resolutions
+- Draft screen layout fixed: bottom row no longer overlaps Start button
+- Level rewards screen layout improved
+- Deck pool preview shows large card previews on hover
+- Admin panel updated with new mechanic types (or, clearTag) and card data editor support
+- Crossed-out Army tag display on penalties when Ranger Scouts is in hand
+
+### Fixes
+- Fixed double-dash display on some card penalty text (e.g., Blizzard)
+- Build fixes for missing type properties
+
 ## 0.11.0 — 2026-03-29
 
 ### New Features
