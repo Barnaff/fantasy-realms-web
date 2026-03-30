@@ -13,6 +13,7 @@ const PHASE_TO_SCENE: Partial<Record<GamePhase, string>> = {
   draft_pick: 'DraftScene',
   map: 'MapScene',
   player_turn: 'EncounterScene',
+  on_end_resolution: 'EncounterScene',
   boss_intro: 'BossIntroScene',
   scoring: 'ScoringScene',
   post_encounter: 'PostEncounterScene',
@@ -27,9 +28,14 @@ function syncScene() {
   if (!phaserGame) return;
   const sceneName = PHASE_TO_SCENE[gm().state.phase];
   if (!sceneName) return;
-  const active = phaserGame.scene.getScenes(true)[0];
-  if (active && active.scene.key !== sceneName) {
-    active.scene.start(sceneName);
+  const activeScenes = phaserGame.scene.getScenes(true);
+  // Check if the target scene is already active
+  const alreadyActive = activeScenes.some(s => s.scene.key === sceneName);
+  if (alreadyActive) return;
+  // Stop all active scenes and start the target
+  const first = activeScenes[0];
+  if (first) {
+    first.scene.start(sceneName);
   }
 }
 
@@ -196,7 +202,17 @@ const api = {
   },
 
   reorder: (from: number, to: number) => { gm().reorderHand(from, to); return 'Hand reordered'; },
-  finalize: () => { gm().finalizeHand(); syncScene(); return 'Hand finalized → scoring'; },
+  finalize: () => {
+    const phaserGame = (window as any).__PHASER_GAME__ as Phaser.Game | undefined;
+    const enc = phaserGame?.scene.getScenes(true).find(s => s.scene.key === 'EncounterScene') as any;
+    if (enc?.onFinalize) {
+      enc.onFinalize();
+    } else {
+      gm().finalizeHand();
+      syncScene();
+    }
+    return `Hand finalized → ${gm().state.phase}`;
+  },
   ack: () => { gm().acknowledgeScore(); syncScene(); return `Score acknowledged → phase: ${gm().state.phase}`; },
 
   // ── Post-encounter ──

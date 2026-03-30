@@ -4,9 +4,12 @@ import { LayoutHelper } from '../systems/LayoutHelper.ts';
 import { GameManager } from '../systems/GameManager.ts';
 import { CardFactory } from '../systems/CardFactory.ts';
 import { resolveCard } from '../../engine/scoring.ts';
+import { CardObject } from '../gameobjects/CardObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 
 export class ScoringScene extends Phaser.Scene {
+  private hoverPreview: CardObject | null = null;
+
   constructor() {
     super({ key: 'ScoringScene' });
   }
@@ -144,6 +147,13 @@ export class ScoringScene extends Phaser.Scene {
       }
     }
 
+    // Card positions for hover detection (added after scroll setup)
+    const cardPositions = handCards.map((_, i) => ({
+      x: startX + i * colW,
+      y: curY + cardH / 2,
+    }));
+    const previewScale = LayoutHelper.getScales(width, height).hand * 1.5;
+
     // Content height = cards + breakdown
     // const maxColH = curY + cardH + 120;
 
@@ -220,12 +230,55 @@ export class ScoringScene extends Phaser.Scene {
         content.y = Phaser.Math.Clamp(contentSY + dy, minY, maxY);
       }
     });
-    this.input.on('pointerup', () => { dragging = false; });
+    this.input.on('pointerup', () => { dragging = false; this.clearHoverPreview(); });
     this.input.on('wheel', (_p: unknown, _g: unknown[], dx: number, dy: number) => {
       if (Math.abs(dx) > Math.abs(dy)) {
         content.x = Phaser.Math.Clamp(content.x - dx * 0.5, minX, maxX);
       } else {
         content.y = Phaser.Math.Clamp(content.y - dy * 0.5, minY, maxY);
+      }
+      this.clearHoverPreview();
+    });
+
+    // ── Card hover preview ──
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (dragging) { this.clearHoverPreview(); return; }
+
+      const localX = p.x - content.x;
+      const localY = p.y - content.y;
+      const halfW = cardW / 2;
+      const halfH = cardH / 2;
+
+      let found = -1;
+      for (let i = 0; i < cardPositions.length; i++) {
+        const cp = cardPositions[i];
+        if (localX >= cp.x - halfW && localX <= cp.x + halfW &&
+            localY >= cp.y - halfH && localY <= cp.y + halfH) {
+          found = i;
+          break;
+        }
+      }
+
+      if (found >= 0) {
+        const existing = this.hoverPreview?.getData('cardIdx');
+        if (existing === found) return;
+        this.clearHoverPreview();
+
+        const resolved2 = resolveCard(handCards[found]);
+        const previewH2 = CARD.HEIGHT * previewScale;
+        const previewW2 = CARD.WIDTH * previewScale;
+        let px = cardPositions[found].x + content.x;
+        let py = cardPositions[found].y + content.y;
+        px = Phaser.Math.Clamp(px, previewW2 / 2 + 10, width - previewW2 / 2 - 10);
+        py = Phaser.Math.Clamp(py, previewH2 / 2 + 10, height - previewH2 / 2 - 50);
+
+        this.hoverPreview = new CardObject(this, px, py, resolved2);
+        this.hoverPreview.setScale(previewScale);
+        this.hoverPreview.setDepth(300);
+        this.hoverPreview.setData('cardIdx', found);
+        if (breakdown[found]?.blanked) this.hoverPreview.setBlanked(true);
+      } else {
+        this.clearHoverPreview();
       }
     });
 
@@ -246,5 +299,12 @@ export class ScoringScene extends Phaser.Scene {
       },
     });
     continueBtn.setDepth(10);
+  }
+
+  private clearHoverPreview(): void {
+    if (this.hoverPreview) {
+      this.hoverPreview.destroy();
+      this.hoverPreview = null;
+    }
   }
 }

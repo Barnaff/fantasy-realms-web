@@ -17,6 +17,7 @@ export const SCORING_EFFECT_IDS = [
   'penaltyIfTagAbsent', 'blankTag', 'blankIfTagPresent', 'blankIfTagAbsent',
   'flatBonus', 'flatPenalty', 'bonusIfCardPresent', 'penaltyIfCardPresent',
   'bonusPerOtherTag', 'sumBaseValueOfTag', 'clearTagFromPenalties', 'copyTagsOfHighest',
+  'bonusPerTagInDiscard',
 ] as const;
 
 export interface ScoringEffect {
@@ -32,12 +33,12 @@ export interface ScoringEffect {
 interface ParamField {
   key: string;
   label: string;
-  type: 'number' | 'tag' | 'cardId' | 'text';
+  type: 'number' | 'tag' | 'cardId' | 'text' | 'tags';
 }
 
 interface EffectMeta {
   label: string;
-  category: 'bonus' | 'penalty' | 'blank' | 'utility';
+  category: 'bonus' | 'penalty' | 'blank' | 'utility' | 'discard' | 'onEnd';
   description: string;
   params: ParamField[];
   generateText: (params: Record<string, unknown>) => string;
@@ -194,6 +195,78 @@ const EFFECT_META: Record<string, EffectMeta> = {
     params: [],
     generateText: () => 'Copies tags of highest-value card',
   },
+  phoenixOnDiscard: {
+    label: 'Phoenix On Discard',
+    category: 'discard',
+    description: 'Scripted: On Discard, permanently increase base score by +3 for the run, then exhaust from this encounter.',
+    params: [],
+    generateText: () => 'On Discard: permanently gain +3 base score for the run, then exhaust',
+  },
+  lichLordOnDiscard: {
+    label: 'Lich Lord On Discard',
+    category: 'discard',
+    description: 'Scripted: On Discard, exhaust a Leader from discard and add an Undead from deck. No configurable params.',
+    params: [],
+    generateText: () => 'On Discard: exhaust a Leader from discard, add Undead from deck',
+  },
+  hedgeWitchOnDiscard: {
+    label: 'Hedge Witch On Discard',
+    category: 'discard',
+    description: 'Scripted: On Discard, view rival cards, select one to discard to river. Then Exhaust.',
+    params: [],
+    generateText: () => 'On Discard: View rival cards, select one to discard to river. Exhaust.',
+  },
+  bonusPerTagInDiscard: {
+    label: 'Bonus Per Tag In Discard',
+    category: 'discard',
+    description: 'Adds bonus for EACH card in the discard area (river) that has any of the specified tags.',
+    params: [
+      { key: 'tags', label: 'Tags (multi)', type: 'tags' },
+      { key: 'bonus', label: 'Bonus per card', type: 'number' },
+    ],
+    generateText: p => {
+      const tags = (p.tags as string[]) || [];
+      const tagStr = tags.length > 0 ? tags.join(', ') : '?';
+      return `+${p.bonus || 0} for each ${tagStr} in discard`;
+    },
+  },
+
+  bonusIfAllUniqueSuitsNonBlanked: {
+    label: 'Bonus If All Unique Suits (Non-Blanked)',
+    category: 'bonus',
+    description: 'Bonus if all cards in hand have different suits (primary tag) and none are blanked.',
+    params: [
+      { key: 'bonus', label: 'Bonus', type: 'number' },
+    ],
+    generateText: p => `+${p.bonus || 0} if all cards are non-blanked and different suits`,
+  },
+
+  // ── Ongoing effects ──
+  blockRiverDraw: {
+    label: 'Block River Draw (Ongoing)',
+    category: 'utility',
+    description: 'While in hand, prevents drawing cards from the river. Player can only draw from deck.',
+    params: [],
+    generateText: () => 'Ongoing: Cannot draw from the river',
+  },
+  exhaustOnDiscard: {
+    label: 'Exhaust On Discard',
+    category: 'discard',
+    description: 'When discarded, this card is exhausted (removed from the level).',
+    params: [],
+    generateText: () => 'On Discard: Exhaust',
+  },
+
+  // ── On End effects ──
+  necromancerOnEnd: {
+    label: 'Necromancer On End',
+    category: 'onEnd',
+    description: 'At end of level (before scoring), pick a card from discard and add it to hand.',
+    params: [
+      { key: 'count', label: 'Cards to pick', type: 'number' },
+    ],
+    generateText: p => `On End: add ${p.count || 1} card from discard to hand`,
+  },
 };
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string }> = {
@@ -201,6 +274,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
   penalty: { bg: '#fef2f2', border: '#dc2626', text: '#991b1b' },
   blank: { bg: '#fef2f2', border: '#7f1d1d', text: '#7f1d1d' },
   utility: { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af' },
+  discard: { bg: '#fdf4ff', border: '#a855f7', text: '#6b21a8' },
 };
 
 /* ══════════════════════════════════════════
@@ -234,6 +308,7 @@ export function EffectEditorRow({
     for (const p of newMeta?.params || []) {
       if (p.type === 'number') defaultParams[p.key] = 0;
       else if (p.type === 'tag') defaultParams[p.key] = 'Beast';
+      else if (p.type === 'tags') defaultParams[p.key] = [];
       else defaultParams[p.key] = '';
     }
     onChange({
@@ -285,8 +360,18 @@ export function EffectEditorRow({
               <option key={id} value={id}>{m.label}</option>
             ))}
           </optgroup>
+          <optgroup label="Discard">
+            {Object.entries(EFFECT_META).filter(([, m]) => m.category === 'discard').map(([id, m]) => (
+              <option key={id} value={id}>{m.label}</option>
+            ))}
+          </optgroup>
           <optgroup label="Utility">
             {Object.entries(EFFECT_META).filter(([, m]) => m.category === 'utility').map(([id, m]) => (
+              <option key={id} value={id}>{m.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="On End">
+            {Object.entries(EFFECT_META).filter(([, m]) => m.category === 'onEnd').map(([id, m]) => (
               <option key={id} value={id}>{m.label}</option>
             ))}
           </optgroup>
@@ -467,6 +552,36 @@ function ParamInput({
             <option key={id} value={id}>{id}</option>
           ))}
         </select>
+      )}
+
+      {field.type === 'tags' && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {ALL_TAGS.map(t => {
+            const selected = ((value as string[]) || []).includes(t);
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  const current = (value as string[]) || [];
+                  onChange(selected ? current.filter(x => x !== t) : [...current, t]);
+                }}
+                style={{
+                  padding: '2px 8px',
+                  fontSize: 11,
+                  borderRadius: 4,
+                  border: `1px solid ${TAG_COLORS[t] || '#ccc'}`,
+                  background: selected ? (TAG_COLORS[t] || '#ccc') : '#fff',
+                  color: selected ? '#fff' : (TAG_COLORS[t] || '#333'),
+                  cursor: 'pointer',
+                  fontWeight: selected ? 700 : 400,
+                }}
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {field.type === 'text' && (

@@ -61,6 +61,18 @@ export const RARITY_LABELS: Record<CardRarity, string> = {
   epic: 'Epic',
 };
 
+export interface OnEndEffect {
+  description: string;
+  effectId: string;
+  params: Record<string, unknown>;
+}
+
+export interface OngoingEffect {
+  effectId: string;
+  description: string;
+  params: Record<string, unknown>;
+}
+
 export interface CardDef {
   id: string;
   name: string;
@@ -71,6 +83,8 @@ export interface CardDef {
   flavor?: string;
   scoringEffects: ScoringEffect[];
   discardEffect: DiscardEffect | null;
+  onEndEffect?: OnEndEffect | null;
+  ongoingEffect?: OngoingEffect | null;
 }
 
 export interface CardModifier {
@@ -93,6 +107,8 @@ export interface ResolvedCard {
   rarity: CardRarity;
   scoringEffects: ScoringEffect[];
   discardEffect: DiscardEffect | null;
+  onEndEffect?: OnEndEffect | null;
+  ongoingEffect?: OngoingEffect | null;
   art?: string;
   flavor?: string;
 }

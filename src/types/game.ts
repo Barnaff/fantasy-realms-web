@@ -14,6 +14,7 @@ export type GamePhase =
   | 'encounter_start'
   | 'player_turn'
   | 'hand_finalization'
+  | 'on_end_resolution'
   | 'scoring'
   | 'post_encounter'
   | 'merchant'
@@ -99,11 +100,16 @@ export interface PendingChoice {
     | 'reorder_cards'
     | 'choose_card_reward'
     | 'choose_event_option'
-    | 'choose_merchant_action';
+    | 'choose_merchant_action'
+    | 'on_end_pick_from_discard'
+    | 'pick_from_rival_hand';
   options: unknown[];
   minSelections: number;
   maxSelections: number;
   prompt: string;
+  /** Card that triggered this effect */
+  sourceCardName?: string;
+  sourceCardId?: string;
 }
 
 export interface RunState {
@@ -124,6 +130,11 @@ export type TurnPhase = 'draw' | 'discard';
 /** Max cards discarded to river before encounter auto-ends */
 export const MAX_RIVER_DISCARDS = 10;
 
+export type RivalIntent =
+  | { type: 'river'; cardInstanceId: string }
+  | { type: 'deck' }
+  | null;
+
 export interface GameState {
   phase: GamePhase;
   run: RunState | null;
@@ -131,6 +142,7 @@ export interface GameState {
   river: River | null;
   hand: HandState;
   discardPile: CardInstance[];
+  exhaustedCards: CardInstance[];
   turnsRemaining: number;
   turnPhase: TurnPhase;
   riverDiscardCount: number;
@@ -140,6 +152,12 @@ export interface GameState {
   postEncounterReward: PostEncounterReward | null;
   draftOptions: DraftOption[] | null;
   actionLog: GameEvent[];
+  /** Rival card-taker: shows which card the rival intends to take after player's turn */
+  rivalIntent: RivalIntent;
+  /** Number of cards the rival has taken this encounter */
+  rivalCardsTaken: number;
+  /** Cards the rival has taken (hidden from player unless revealed by card effects) */
+  rivalHand: CardInstance[];
 }
 
 export type GameEvent =
@@ -149,6 +167,7 @@ export type GameEvent =
   | { type: 'discard_from_hand'; cardInstanceId: string; effectDescription: string }
   | { type: 'swap_card'; fromHandId: string; toRiverId: string }
   | { type: 'encounter_started'; encounterName: string }
+  | { type: 'exhaust'; cardInstanceId: string; cardName: string }
   | { type: 'scoring_complete'; totalScore: number }
   | { type: 'encounter_passed'; score: number; threshold: number }
   | { type: 'encounter_failed'; score: number; threshold: number }
@@ -156,4 +175,5 @@ export type GameEvent =
   | { type: 'card_removed_from_pool'; cardDefId: string }
   | { type: 'relic_acquired'; relicDefId: string }
   | { type: 'gold_changed'; amount: number; reason: string }
-  | { type: 'river_refilled'; count: number };
+  | { type: 'river_refilled'; count: number }
+  | { type: 'rival_take'; cardInstanceId?: string; cardName?: string; fromDeck: boolean };

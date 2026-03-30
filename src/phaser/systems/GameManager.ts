@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { GameState } from '../../types/game.ts';
 import type { ResolvedCard } from '../../types/card.ts';
 import type { MapNode } from '../../types/map.ts';
-import { createInitialGameState, startRun, startEncounter } from '../../engine/run.ts';
+import { createInitialGameState, startRun, startEncounter, calculateRivalIntent } from '../../engine/run.ts';
 import { createRiver, dealInitialHand, drawFromRiver, drawFromDeck, discardToRiver } from '../../engine/river.ts';
 import { MAX_RIVER_DISCARDS } from '../../types/game.ts';
 import { scoreHand, resolveCard } from '../../engine/scoring.ts';
@@ -293,9 +293,18 @@ export class GameManager {
     this.emit('handChanged');
   }
 
+  /** Check if any card in hand has an ongoing effect that blocks river draws */
+  isRiverDrawBlocked(): boolean {
+    return this.state.hand.cards.some(c => {
+      const resolved = resolveCard(c);
+      return resolved.ongoingEffect?.effectId === 'blockRiverDraw';
+    });
+  }
+
   drawCard(riverIndex: number) {
     if (this.state.phase !== 'player_turn' || this.state.turnPhase !== 'draw') return;
     if (!this.state.river || riverIndex >= this.state.river.cards.length) return;
+    if (this.isRiverDrawBlocked()) return; // Ongoing: can't draw from river
 
     const { river, hand } = drawFromRiver(this.state.river, this.state.hand, riverIndex);
     this.state = {
@@ -331,9 +340,12 @@ export class GameManager {
       newState = executeDiscardEffect(newState, resolved, rng);
     }
 
+    // Rival takes a card after player's discard
+    newState = this.executeRivalAction(newState);
+
     // Auto-end encounter when 10th card is discarded
     if (newDiscardCount >= MAX_RIVER_DISCARDS) {
-      const result = scoreHand(newState.hand.cards, newState.relics, newState.encounter?.modifiers);
+      const result = scoreHand(newState.hand.cards, newState.relics, newState.encounter?.modifiers, newState.river?.cards);
       newState = {
         ...newState,
         phase: 'scoring',
@@ -345,6 +357,62 @@ export class GameManager {
     this.emit('stateChanged');
     this.emit('handChanged');
     if (newState.phase === 'scoring') this.emit('phaseChanged');
+  }
+
+  /** Rival takes a card based on its intent, then calculates new intent. */
+  private executeRivalAction(state: GameState): GameState {
+    if (!state.river || !state.rivalIntent) return state;
+
+    const intent = state.rivalIntent;
+    let newRiverCards = [...state.river.cards];
+    let newDeck = [...state.river.deck];
+    let takenCard: import('../../types/card.ts').CardInstance | null = null;
+    let takenCardName: string | undefined;
+    let takenInstanceId: string | undefined;
+    let fromDeck = false;
+
+    if (intent.type === 'river') {
+      const idx = newRiverCards.findIndex(c => c.instanceId === intent.cardInstanceId);
+      if (idx >= 0) {
+        // Intended card still in river — take it
+        takenCard = newRiverCards[idx];
+        takenCardName = resolveCard(takenCard).name;
+        takenInstanceId = takenCard.instanceId;
+        newRiverCards.splice(idx, 1);
+      } else {
+        // Player took the card — fall back to deck
+        fromDeck = true;
+        if (newDeck.length > 0) {
+          takenCard = newDeck[0];
+          newDeck = newDeck.slice(1);
+        }
+      }
+    } else {
+      // Intent was deck
+      fromDeck = true;
+      if (newDeck.length > 0) {
+        takenCard = newDeck[0];
+        newDeck = newDeck.slice(1);
+      }
+    }
+
+    const newRiver = { cards: newRiverCards, deck: newDeck };
+
+    // Calculate next intent
+    const rng = new SeededRNG(state.run!.seed + 5000 + state.rivalCardsTaken + 1);
+    const newIntent = calculateRivalIntent(newRiver, state.encounter?.modifiers, rng);
+
+    return {
+      ...state,
+      river: newRiver,
+      rivalCardsTaken: state.rivalCardsTaken + 1,
+      rivalHand: takenCard ? [...state.rivalHand, takenCard] : state.rivalHand,
+      rivalIntent: newIntent,
+      actionLog: [
+        ...state.actionLog,
+        { type: 'rival_take' as const, cardInstanceId: takenInstanceId, cardName: takenCardName, fromDeck },
+      ],
+    };
   }
 
   reorderHand(fromIndex: number, toIndex: number) {
@@ -362,11 +430,143 @@ export class GameManager {
 
   finalizeHand() {
     if (this.state.hand.cards.length === 0) return;
-    const result = scoreHand(this.state.hand.cards, this.state.relics, this.state.encounter?.modifiers);
+
+    // Check for on-end effects before scoring
+    const onEndCards = this.state.hand.cards
+      .map(c => resolveCard(c))
+      .filter(r => r.onEndEffect);
+
+    if (onEndCards.length > 0) {
+      // Queue on-end resolution — process first one
+      this.state = {
+        ...this.state,
+        phase: 'on_end_resolution',
+        pendingChoice: null,
+      };
+      this._processNextOnEndEffect(onEndCards.map(c => c.defId));
+      return;
+    }
+
+    this._doScoring();
+  }
+
+  /** Internal: resolve on-end effects one at a time */
+  private _onEndQueue: string[] = [];
+
+  private _processNextOnEndEffect(queue?: string[]) {
+    if (queue) this._onEndQueue = [...queue];
+    if (this._onEndQueue.length === 0) {
+      // All on-end effects resolved → proceed to scoring
+      this._doScoring();
+      return;
+    }
+
+    const nextDefId = this._onEndQueue.shift()!;
+    const card = this.state.hand.cards.find(c => c.defId === nextDefId);
+    if (!card) { this._processNextOnEndEffect(); return; }
+    const resolved = resolveCard(card);
+    if (!resolved.onEndEffect) { this._processNextOnEndEffect(); return; }
+
+    const effect = resolved.onEndEffect;
+    switch (effect.effectId) {
+      case 'necromancerOnEnd': {
+        // Pick a card from the river (discard area) to add to hand
+        const riverCards = this.state.river?.cards ?? [];
+        if (riverCards.length === 0) {
+          this._processNextOnEndEffect();
+          return;
+        }
+        this.state = {
+          ...this.state,
+          pendingChoice: {
+            type: 'on_end_pick_from_discard',
+            options: riverCards,
+            minSelections: 1,
+            maxSelections: 1,
+            prompt: effect.description || 'Choose a card from the discard to add to your hand',
+            sourceCardName: resolved.name,
+            sourceCardId: resolved.defId,
+          },
+        };
+        this.emit('stateChanged');
+        break;
+      }
+      default:
+        console.warn(`Unknown onEnd effect: ${effect.effectId}`);
+        this._processNextOnEndEffect();
+    }
+  }
+
+  resolveRivalHandPick(selectedInstanceId: string) {
+    if (!this.state.pendingChoice || this.state.pendingChoice.type !== 'pick_from_rival_hand') return;
+
+    // Find the selected card in rivalHand
+    const cardIdx = this.state.rivalHand.findIndex(c => c.instanceId === selectedInstanceId);
+    if (cardIdx < 0) return;
+
+    const selectedCard = this.state.rivalHand[cardIdx];
+    const newRivalHand = [...this.state.rivalHand];
+    newRivalHand.splice(cardIdx, 1);
+
+    // Move it to the river
+    const newRiverCards = [...(this.state.river?.cards ?? []), selectedCard];
+
+    // Now exhaust the Hedge Witch (she should be in river from the discard)
+    const hwId = this.state.pendingChoice.sourceCardId;
+    const hwIdx = newRiverCards.findIndex(c => c.defId === hwId);
+    let exhaustedCards = [...this.state.exhaustedCards];
+    let actionLog = [...this.state.actionLog];
+    if (hwIdx >= 0) {
+      const hw = newRiverCards[hwIdx];
+      newRiverCards.splice(hwIdx, 1);
+      exhaustedCards.push(hw);
+      actionLog.push({ type: 'exhaust' as const, cardInstanceId: hw.instanceId, cardName: this.state.pendingChoice.sourceCardName || 'Hedge Witch' });
+    }
+
+    this.state = {
+      ...this.state,
+      rivalHand: newRivalHand,
+      rivalCardsTaken: this.state.rivalCardsTaken - 1,
+      river: this.state.river ? { ...this.state.river, cards: newRiverCards } : null,
+      exhaustedCards,
+      pendingChoice: null,
+      actionLog,
+    };
+    this.emit('stateChanged');
+    this.emit('handChanged');
+  }
+
+  resolveOnEndChoice(selectedIndices: number[]) {
+    if (this.state.phase !== 'on_end_resolution' || !this.state.pendingChoice) return;
+    const choice = this.state.pendingChoice;
+
+    if (choice.type === 'on_end_pick_from_discard') {
+      // Move selected card from river to hand
+      const riverCards = [...(this.state.river?.cards ?? [])];
+      const selected = selectedIndices.map(i => riverCards[i]).filter(Boolean);
+      // Remove selected from river
+      const remaining = riverCards.filter((_, i) => !selectedIndices.includes(i));
+      this.state = {
+        ...this.state,
+        river: this.state.river ? { ...this.state.river, cards: remaining } : null,
+        hand: { ...this.state.hand, cards: [...this.state.hand.cards, ...selected] },
+        pendingChoice: null,
+      };
+      this.emit('stateChanged');
+      this.emit('handChanged');
+    }
+
+    // Process next on-end effect
+    this._processNextOnEndEffect();
+  }
+
+  private _doScoring() {
+    const result = scoreHand(this.state.hand.cards, this.state.relics, this.state.encounter?.modifiers, this.state.river?.cards);
     this.state = {
       ...this.state,
       phase: 'scoring',
       lastScoreResult: result,
+      pendingChoice: null,
     };
     this.emit('stateChanged');
     this.emit('phaseChanged');
@@ -663,7 +863,7 @@ export class GameManager {
 
   getLiveScore() {
     if (this.state.hand.cards.length === 0) return null;
-    return scoreHand(this.state.hand.cards, this.state.relics, this.state.encounter?.modifiers);
+    return scoreHand(this.state.hand.cards, this.state.relics, this.state.encounter?.modifiers, this.state.river?.cards);
   }
 
   getResolvedHand(): ResolvedCard[] {

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, FONTS } from '../../config.ts';
 import { AuthManager } from '../systems/AuthManager.ts';
 import { CARD_DEFS } from '../../data/cards.ts';
+import { loadGameData } from '../../firebase/gamedata.ts';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -61,7 +62,15 @@ export class BootScene extends Phaser.Scene {
       }
     };
 
-    const auth = AuthManager.getInstance();
-    auth.init().then(goToTitle).catch(() => goToTitle());
+    // Load game data from Firestore (cards, relics, events, themes)
+    // then init auth, then go to title
+    loadGameData()
+      .catch(() => console.warn('[BootScene] Firestore load failed, using fallback'))
+      .then(() => {
+        const auth = AuthManager.getInstance();
+        return auth.init();
+      })
+      .then(goToTitle)
+      .catch(() => goToTitle());
   }
 }

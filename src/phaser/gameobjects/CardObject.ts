@@ -194,6 +194,54 @@ export class CardObject extends Phaser.GameObjects.Container {
       curEffectY += maxH + 1;
     }
 
+    // --- Ongoing effect text ---
+    if (card.ongoingEffect && curEffectY < maxEffectBottom) {
+      const ongoingText = scene.add.text(0, curEffectY, `Ongoing: ${card.ongoingEffect.description}`, {
+        fontFamily: FONTS.body,
+        fontSize: `${effectFontSize}px`,
+        color: '#b8860b',
+        fontStyle: 'bold italic',
+        resolution: RES,
+        wordWrap: { width: maxEffectWidth },
+        align: 'center',
+      }).setOrigin(0.5, 0);
+      scene.children.remove(ongoingText);
+      this.add(ongoingText);
+      curEffectY += (ongoingText.height || 8) + 1;
+    }
+
+    // --- Discard effect text ---
+    if (card.discardEffect && curEffectY < maxEffectBottom) {
+      const discardText = scene.add.text(0, curEffectY, card.discardEffect.description, {
+        fontFamily: FONTS.body,
+        fontSize: `${effectFontSize}px`,
+        color: '#8b4513',
+        fontStyle: 'italic',
+        resolution: RES,
+        wordWrap: { width: maxEffectWidth },
+        align: 'center',
+      }).setOrigin(0.5, 0);
+      scene.children.remove(discardText);
+      this.add(discardText);
+      curEffectY += (discardText.height || 8) + 1;
+    }
+
+    // --- On End effect text ---
+    if (card.onEndEffect && curEffectY < maxEffectBottom) {
+      const onEndText = scene.add.text(0, curEffectY, `On End: ${card.onEndEffect.description}`, {
+        fontFamily: FONTS.body,
+        fontSize: `${effectFontSize}px`,
+        color: '#6b3a6b',
+        fontStyle: 'italic',
+        resolution: RES,
+        wordWrap: { width: maxEffectWidth },
+        align: 'center',
+      }).setOrigin(0.5, 0);
+      scene.children.remove(onEndText);
+      this.add(onEndText);
+      curEffectY += (onEndText.height || 8) + 1;
+    }
+
     // --- 8. Blanked overlay (hidden by default) ---
     this.blankedOverlay = scene.add.container(0, 0);
     this.blankedOverlay.setVisible(false);

@@ -1,6 +1,7 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './config.ts';
-import { CARD_DEFS } from '../data/cards.ts';
+import { _setLiveCardData } from '../data/cards.ts';
+import { CARD_DEFS as FALLBACK_CARDS } from '../data/cards.archive.ts';
 import { RELIC_DEFS } from '../data/relics.ts';
 import { EVENT_DEFS } from '../data/events.ts';
 import type { EventDef } from '../data/events.ts';
@@ -74,6 +75,7 @@ class GameDataStore {
         }
 
         this.rebuildMaps();
+        _setLiveCardData(this.cards); // Update live card exports
         this.initialized = true;
         console.log('[GameData] Loaded from Firestore');
         return;
@@ -93,6 +95,7 @@ class GameDataStore {
           this.events = cache.events;
           this.encounterThemes = cache.encounterThemes;
           this.rebuildMaps();
+          _setLiveCardData(this.cards); // Update live card exports
           this.initialized = true;
           console.log('[GameData] Loaded from localStorage cache');
           return;
@@ -102,8 +105,8 @@ class GameDataStore {
       // cache corrupt or unavailable
     }
 
-    // Fall back to static imports
-    this.cards = CARD_DEFS;
+    // Fall back to archive static imports
+    this.cards = FALLBACK_CARDS;
     this.relics = RELIC_DEFS;
     this.events = EVENT_DEFS;
     this.encounterThemes = ENCOUNTER_THEMES;

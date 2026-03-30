@@ -8,6 +8,7 @@ import { DeckPileObject } from '../gameobjects/DeckPileObject.ts';
 import { ButtonObject } from '../gameobjects/ButtonObject.ts';
 import type { GameState } from '../../types/game.ts';
 import { resolveCard } from '../../engine/scoring.ts';
+import { CARD_DEFS } from '../../data/cards.ts';
 import { createKeywordTooltips, getPoolCardIds } from '../utils/KeywordTooltips.ts';
 import { getCardRelations } from '../utils/CardRelations.ts';
 import { TutorialOverlay } from '../gameobjects/TutorialOverlay.ts';
@@ -56,6 +57,16 @@ export class EncounterScene extends Phaser.Scene {
   private riverStartY = 0;
   private layoutW = 0;
   private layoutOffsetX = 0;
+
+  // --- Exhaust tracking ---
+  private lastActionLogLen = 0;
+  private exhaustAnimating = false;
+
+  // --- Rival intent marker ---
+  private rivalMarkers: Phaser.GameObjects.Container[] = [];
+
+  // --- River blocked icons (ongoing effects) ---
+  private riverBlockedIcons: Phaser.GameObjects.Text[] = [];
 
   // --- River hover state ---
   private hoveredRiverIndex = -1;
@@ -264,11 +275,13 @@ export class EncounterScene extends Phaser.Scene {
     this.deckPile.setCount(deckCount);
     this.deckPile.setCanDraw(isDraw && deckCount > 0);
 
-    // Clear old river cards
+    // Clear old river cards and blocked icons
     this.hoveredRiverIndex = -1;
     for (const c of this.riverCards) { this.tweens.killTweensOf(c); c.destroy(); }
     this.riverCards = [];
     this.riverPositions = [];
+    for (const ic of this.riverBlockedIcons) ic.destroy();
+    this.riverBlockedIcons = [];
 
     if (riverCards.length === 0) return;
 
@@ -286,20 +299,105 @@ export class EncounterScene extends Phaser.Scene {
     );
     this.riverPositions = positions;
 
+    const riverBlocked = this.gm.isRiverDrawBlocked();
+
     for (let i = 0; i < riverCards.length; i++) {
       const resolved = resolveCard(riverCards[i]);
       const pos = positions[i];
       const card = CardFactory.create(this, resolved, pos.x, pos.y, this.scales.river);
 
-      if (isDraw) {
+      if (isDraw && !riverBlocked) {
         card.setGlowing(true, 'green');
+      } else if (isDraw && riverBlocked) {
+        // Show blocked indication — dim the card and add lock icon
+        card.setAlpha(0.5);
+        const lockIcon = this.add.text(pos.x, pos.y, '🔒', {
+          fontSize: `${Math.round(18 * this.scales.river)}px`,
+          resolution: 2,
+        }).setOrigin(0.5).setDepth(card.depth + 1);
+        this.riverBlockedIcons.push(lockIcon);
       }
 
       // No Phaser interactive — taps handled at scene level
       card.setData('riverIndex', i);
+      card.setData('instanceId', riverCards[i].instanceId);
 
       this.riverCards.push(card);
     }
+
+    // ── Rival intent marker ──
+    this.clearRivalMarkers();
+    const intent = this.gm.state.rivalIntent;
+    if (intent) {
+      if (intent.type === 'river') {
+        const targetIdx = riverCards.findIndex(c => c.instanceId === intent.cardInstanceId);
+        if (targetIdx >= 0 && this.riverCards[targetIdx]) {
+          const card = this.riverCards[targetIdx];
+          const resolved = resolveCard(riverCards[targetIdx]);
+          const marker = this.createRivalMarker(
+            card.x, card.y - CARD.HEIGHT * this.scales.river / 2 - 10,
+            `Rival wants: ${resolved.name}`,
+          );
+          this.rivalMarkers.push(marker);
+        }
+      } else if (intent.type === 'deck') {
+        const marker = this.createRivalMarker(
+          this.deckPilePos.x, this.deckPilePos.y - CARD.HEIGHT * this.scales.river / 2 - 10,
+          'Rival wants a card from the deck',
+        );
+        this.rivalMarkers.push(marker);
+      }
+    }
+  }
+
+  private createRivalMarker(x: number, y: number, tooltipText: string): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y).setDepth(90);
+    // Skull icon background
+    const bg = this.add.circle(0, 0, 12, 0x000000, 0.6);
+    const icon = this.add.text(0, 0, '👁', {
+      fontSize: '14px',
+      resolution: 2,
+    }).setOrigin(0.5);
+    container.add([bg, icon]);
+
+    // Tooltip (hidden by default, shown on hover)
+    const tooltip = this.add.text(0, -22, tooltipText, {
+      fontFamily: FONTS.body,
+      fontSize: '11px',
+      color: '#ffffff',
+      backgroundColor: '#000000cc',
+      padding: { x: 8, y: 4 },
+      resolution: 2,
+    }).setOrigin(0.5).setAlpha(0);
+    container.add(tooltip);
+
+    // Make interactive for hover
+    const hitArea = new Phaser.Geom.Circle(0, 0, 16);
+    container.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
+    container.on('pointerover', () => tooltip.setAlpha(1));
+    container.on('pointerout', () => tooltip.setAlpha(0));
+
+    // Pulsing animation
+    this.tweens.add({
+      targets: container,
+      scaleX: 1.2,
+      scaleY: 1.2,
+      alpha: 0.7,
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    return container;
+  }
+
+  private clearRivalMarkers(): void {
+    for (const m of this.rivalMarkers) {
+      this.tweens.killTweensOf(m);
+      m.destroy();
+    }
+    this.rivalMarkers = [];
   }
 
   /** Check if pointer is over the deck pile */
@@ -445,6 +543,7 @@ export class EncounterScene extends Phaser.Scene {
     const state = this.gm.state;
     if (state.phase !== 'player_turn' || state.turnPhase !== 'draw') return;
     if (this.isDrawAnimating) return;
+    if (this.gm.isRiverDrawBlocked()) return; // Ongoing: can't draw from river
 
     const riverCard = state.river?.cards[riverIndex];
     if (!riverCard) return;
@@ -691,7 +790,11 @@ export class EncounterScene extends Phaser.Scene {
 
   private onFinalize(): void {
     this.gm.finalizeHand();
-    this.scene.start('ScoringScene');
+    // Only go to scoring if we're not resolving on-end effects
+    if (this.gm.state.phase === 'scoring') {
+      this.scene.start('ScoringScene');
+    }
+    // If phase is 'on_end_resolution', the popup will be shown via onStateChanged
   }
 
   // ═══════════════════════════════════════════════════════
@@ -712,6 +815,7 @@ export class EncounterScene extends Phaser.Scene {
     const DRAG_THRESHOLD = 8; // px before we start dragging
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.onEndPopupGroup) return;
       if (this.draggingCard) return;
 
       // Check hand cards first (for drag initiation)
@@ -730,19 +834,24 @@ export class EncounterScene extends Phaser.Scene {
         return;
       }
 
-      // Check river card tap
-      const riverIdx = this.getRiverCardAtPointer(pointer.x, pointer.y);
-      if (riverIdx >= 0) {
-        // Clear hover effects before drawing
-        this.clearHoverShadow();
-        this.clearKeywordTooltips();
-        this.setHoveredRiverIndex(-1);
-        this.onRiverCardTap(riverIdx);
-        return;
+      // Check river card tap (skip if river draw is blocked by ongoing effect)
+      if (!this.gm.isRiverDrawBlocked()) {
+        const riverIdx = this.getRiverCardAtPointer(pointer.x, pointer.y);
+        if (riverIdx >= 0) {
+          // Clear hover effects before drawing
+          this.clearHoverShadow();
+          this.clearKeywordTooltips();
+          this.setHoveredRiverIndex(-1);
+          this.onRiverCardTap(riverIdx);
+          return;
+        }
       }
     });
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      // Block scene-level input when a popup overlay is active
+      if (this.onEndPopupGroup) return;
+
       // If we're dragging, move the card
       if (this.draggingCard) {
         this.draggingCard.x = pointer.x;
@@ -774,6 +883,7 @@ export class EncounterScene extends Phaser.Scene {
     });
 
     this.input.on('pointerup', (_pointer: Phaser.Input.Pointer) => {
+      if (this.onEndPopupGroup) return;
       if (this.draggingCard) {
         this.onHandDragEnd(this.draggingCard);
       }
@@ -1228,9 +1338,84 @@ export class EncounterScene extends Phaser.Scene {
       this.scene.start('ScoringScene');
       return;
     }
+
+    // Check for on-end resolution popup
+    if (this.gm.state.phase === 'on_end_resolution' && this.gm.state.pendingChoice?.type === 'on_end_pick_from_discard') {
+      this.showOnEndPickPopup();
+      return;
+    }
+
+    // Check for rival hand pick popup (Hedge Witch)
+    if (this.gm.state.pendingChoice?.type === 'pick_from_rival_hand') {
+      this.showRivalHandPickPopup();
+      return;
+    }
+
+    // Check for new exhaust and rival_take events — animate before refreshing river
+    const log = this.gm.state.actionLog;
+    let hasDelayedAnim = false;
+    for (let i = this.lastActionLogLen; i < log.length; i++) {
+      const evt = log[i];
+      if (evt.type === 'exhaust') {
+        const orphanIdx = this.riverCards.findIndex(
+          c => c.getData('instanceId') === evt.cardInstanceId
+        );
+        if (orphanIdx >= 0) {
+          const orphanCard = this.riverCards[orphanIdx];
+          this.riverCards.splice(orphanIdx, 1);
+          this.playExhaustAnimation(orphanCard, evt.cardName);
+          hasDelayedAnim = true;
+        } else {
+          this.showExhaustToast(evt.cardName);
+        }
+      }
+      if (evt.type === 'rival_take') {
+        if (evt.cardInstanceId && !evt.fromDeck) {
+          // Rival took a river card — find the visual and animate it
+          const rivalIdx = this.riverCards.findIndex(
+            c => c.getData('instanceId') === evt.cardInstanceId
+          );
+          if (rivalIdx >= 0) {
+            const rivalCard = this.riverCards[rivalIdx];
+            this.riverCards.splice(rivalIdx, 1);
+            this.playRivalTakeAnimation(rivalCard);
+            hasDelayedAnim = true;
+          }
+        } else {
+          // Rival took from deck — animate a card-back sliding off the deck
+          this.playRivalTakeDeckAnimation();
+          hasDelayedAnim = true;
+        }
+      }
+    }
+    this.lastActionLogLen = log.length;
+
     this.refreshHeader();
-    this.refreshRiver();
-    this.refreshScorePanel();
+    if (hasDelayedAnim) {
+      // Delay river refresh so the exhaust/rival animation is visible
+      this.exhaustAnimating = true;
+      this.time.delayedCall(2000, () => {
+        this.exhaustAnimating = false;
+        this.refreshRiver();
+        this.refreshScorePanel();
+        // Deferred popup check — pending choice may have been set during animation delay
+        if (this.gm.state.pendingChoice?.type === 'pick_from_rival_hand' && !this.onEndPopupGroup) {
+          this.showRivalHandPickPopup();
+        }
+      });
+    } else {
+      this.refreshRiver();
+      this.refreshScorePanel();
+    }
+
+    // Deferred popup check — catches cases where the early return was missed
+    if ((this.gm.state.pendingChoice as any)?.type === 'pick_from_rival_hand' && !this.onEndPopupGroup) {
+      this.time.delayedCall(50, () => {
+        if ((this.gm.state.pendingChoice as any)?.type === 'pick_from_rival_hand' && !this.onEndPopupGroup) {
+          this.showRivalHandPickPopup();
+        }
+      });
+    }
   }
 
   private onHandChanged(): void {
@@ -1244,16 +1429,245 @@ export class EncounterScene extends Phaser.Scene {
       this.scene.start('ScoringScene');
       return;
     }
+
+    // Check for rival hand pick popup (Hedge Witch) — may fire during discard
+    if (this.gm.state.pendingChoice?.type === 'pick_from_rival_hand') {
+      this.refreshHand();
+      this.showRivalHandPickPopup();
+      return;
+    }
+
     this.refreshHand();
     this.refreshScorePanel();
-    // Also refresh river since draw removes a card from it
-    this.refreshRiver();
+    // Also refresh river since draw removes a card from it (but not during exhaust animation)
+    if (!this.exhaustAnimating) {
+      this.refreshRiver();
+    }
     this.refreshHeader();
   }
 
   // ═══════════════════════════════════════════════════════
   //  CHEATS PANEL (localhost only)
   // ═══════════════════════════════════════════════════════
+
+  private playRivalTakeDeckAnimation(): void {
+    // Create a card-back visual at the deck position
+    const s = this.scales.river;
+    const w = CARD.WIDTH * s;
+    const h = CARD.HEIGHT * s;
+    const cardBack = this.add.container(this.deckPilePos.x, this.deckPilePos.y).setDepth(400);
+
+    // Card back rectangle
+    const rect = this.add.rectangle(0, 0, w, h, 0x5c3d2e).setStrokeStyle(2, 0x3a2517);
+    const pattern = this.add.text(0, 0, 'FR', {
+      fontFamily: FONTS.display,
+      fontSize: `${Math.round(20 * s)}px`,
+      color: '#8b6914',
+      resolution: 2,
+    }).setOrigin(0.5).setAlpha(0.5);
+    cardBack.add([rect, pattern]);
+
+    // Slide off to the right and fade (same as river take)
+    this.tweens.add({
+      targets: cardBack,
+      alpha: 0.6,
+      duration: 200,
+    });
+    this.tweens.add({
+      targets: cardBack,
+      x: cardBack.x + 200,
+      alpha: 0,
+      scaleX: 0.7,
+      scaleY: 0.7,
+      duration: 600,
+      delay: 300,
+      ease: 'Quad.easeIn',
+      onComplete: () => cardBack.destroy(),
+    });
+
+    // Show toast
+    this.showRivalToast();
+  }
+
+  private showRivalToast(): void {
+    const cx = this.width / 2;
+    const cy = this.riverStartY + 60;
+    const toast = this.add.text(cx, cy, '👁 Rival took a card', {
+      fontFamily: FONTS.body,
+      fontSize: '14px',
+      color: '#c4433a',
+      fontStyle: 'bold',
+      backgroundColor: '#00000040',
+      padding: { x: 12, y: 6 },
+      resolution: 2,
+    }).setOrigin(0.5).setDepth(500).setAlpha(0);
+
+    this.tweens.add({
+      targets: toast,
+      alpha: 1,
+      y: cy - 20,
+      duration: 300,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: toast,
+          alpha: 0,
+          y: cy - 40,
+          duration: 400,
+          delay: 1000,
+          onComplete: () => toast.destroy(),
+        });
+      },
+    });
+  }
+
+  private playRivalTakeAnimation(card: Phaser.GameObjects.Container): void {
+    card.setDepth(400);
+
+    // Dark tint overlay
+    this.tweens.add({
+      targets: card,
+      alpha: 0.6,
+      duration: 200,
+    });
+
+    // Slide off to the right and fade
+    this.tweens.add({
+      targets: card,
+      x: card.x + 200,
+      alpha: 0,
+      scaleX: card.scaleX * 0.7,
+      scaleY: card.scaleY * 0.7,
+      duration: 600,
+      delay: 300,
+      ease: 'Quad.easeIn',
+      onComplete: () => card.destroy(),
+    });
+
+    this.showRivalToast();
+  }
+
+  private playExhaustAnimation(card: Phaser.GameObjects.Container, cardName: string): void {
+    card.setDepth(400);
+
+    const cx = card.x;
+    const cy = card.y;
+    const cardW = CARD.WIDTH * this.scales.river;
+    const cardH = CARD.HEIGHT * this.scales.river;
+    const hasTex = this.textures.exists('particle-glow');
+    const emitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
+    const zoneRect = new Phaser.Geom.Rectangle(-cardW / 2, -cardH / 4, cardW, cardH * 0.75);
+    const zoneConfig = { type: 'random', source: zoneRect } as Phaser.Types.GameObjects.Particles.ParticleEmitterRandomZoneConfig;
+
+    if (hasTex) {
+      // Layer 1 — big fire tongues rising from bottom half
+      emitters.push(this.add.particles(cx, cy, 'particle-glow', {
+        speed: { min: 40, max: 100 },
+        angle: { min: 245, max: 295 },
+        scale: { start: 0.9, end: 0.1 },
+        alpha: { start: 1, end: 0 },
+        lifespan: { min: 600, max: 1200 },
+        tint: [0xff2200, 0xff4400, 0xff6600, 0xffaa00],
+        emitZone: zoneConfig,
+        frequency: 25,
+        quantity: 4,
+      }));
+
+      // Layer 2 — small hot embers that drift upward slowly
+      emitters.push(this.add.particles(cx, cy, 'particle-glow', {
+        speed: { min: 10, max: 50 },
+        angle: { min: 250, max: 290 },
+        scale: { start: 0.35, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: { min: 800, max: 1800 },
+        tint: [0xffdd00, 0xffaa00, 0xff8800],
+        emitZone: zoneConfig,
+        frequency: 40,
+        quantity: 2,
+      }));
+
+      // Layer 3 — faint purple/dark ash drifting outward
+      emitters.push(this.add.particles(cx, cy, 'particle-glow', {
+        speed: { min: 15, max: 45 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.5, end: 0.15 },
+        alpha: { start: 0.6, end: 0 },
+        lifespan: { min: 1000, max: 2200 },
+        tint: [0x4a2060, 0x222222, 0x553366, 0x111111],
+        emitZone: zoneConfig,
+        frequency: 60,
+        quantity: 2,
+      }));
+
+      emitters.forEach((e, i) => e.setDepth(401 + i));
+    }
+
+    // Phase 1 — red tint flash (card "ignites")
+    this.tweens.add({
+      targets: card,
+      alpha: 0.7,
+      duration: 250,
+      yoyo: true,
+      repeat: 2,
+      ease: 'Sine.easeInOut',
+    });
+
+    // Phase 2 — main dissolve: shrink, fade, rise (slower)
+    this.tweens.add({
+      targets: card,
+      scaleX: card.scaleX * 0.15,
+      scaleY: card.scaleY * 0.15,
+      alpha: 0,
+      y: card.y - 60,
+      duration: 1400,
+      delay: 500,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        card.destroy();
+        // Stop emitting, let remaining particles finish their lifespan
+        emitters.forEach(e => e.stop());
+        this.time.delayedCall(2200, () => {
+          emitters.forEach(e => { if (e.active) e.destroy(); });
+        });
+      },
+    });
+
+    // Show toast after a short beat
+    this.time.delayedCall(400, () => this.showExhaustToast(cardName));
+  }
+
+  private showExhaustToast(cardName: string): void {
+    const cx = this.width / 2;
+    const cy = this.riverStartY + 60;
+    const toast = this.add.text(cx, cy, `⚰ Exhausted: ${cardName}`, {
+      fontFamily: 'MedievalSharp, serif',
+      fontSize: '22px',
+      color: '#9b59b6',
+      stroke: '#1a1a2e',
+      strokeThickness: 3,
+      align: 'center',
+    }).setOrigin(0.5).setDepth(500).setAlpha(0);
+
+    this.tweens.add({
+      targets: toast,
+      alpha: 1,
+      y: cy - 30,
+      duration: 400,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.time.delayedCall(1200, () => {
+          this.tweens.add({
+            targets: toast,
+            alpha: 0,
+            y: cy - 60,
+            duration: 500,
+            ease: 'Quad.easeIn',
+            onComplete: () => toast.destroy(),
+          });
+        });
+      },
+    });
+  }
 
   private createCheatsPanel(): void {
     const panelX = 6;
@@ -1297,6 +1711,499 @@ export class EncounterScene extends Phaser.Scene {
     makeBtn(x, 'Reroll', 0x3b82f6, () => {
       this.gm.cheatRerollHand();
     });
+    x += btnW + gap;
+    makeBtn(x, 'Discard+', 0x9333ea, () => {
+      this.showCheatCardSelector();
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  CHEAT: CARD SELECTOR FOR DISCARD
+  // ═══════════════════════════════════════════════════════
+
+  private cheatSelectorGroup: Phaser.GameObjects.Container | null = null;
+
+  private showCheatCardSelector(): void {
+    if (this.cheatSelectorGroup) { this.cheatSelectorGroup.destroy(); this.cheatSelectorGroup = null; }
+    if (!this.gm.state.river) return;
+
+    const allCards = CARD_DEFS;
+    const w = this.width;
+    const h = this.height;
+
+    const group = this.add.container(0, 0).setDepth(600);
+    this.cheatSelectorGroup = group;
+
+    // Blocking overlay
+    const overlay = this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.7).setInteractive();
+    overlay.on('pointerdown', () => { group.destroy(); this.cheatSelectorGroup = null; });
+    group.add(overlay);
+
+    // Title
+    const title = this.add.text(w / 2, 20, 'Select card to add to discard', {
+      fontFamily: FONTS.display,
+      fontSize: '18px',
+      color: '#ffffff',
+      resolution: 2,
+    }).setOrigin(0.5, 0);
+    group.add(title);
+
+    // Card grid — show all game cards as small cards
+    // Larger cards — aim for ~5 cols with scroll
+    const targetCols = Math.max(4, Math.min(7, Math.floor(w / 140)));
+    const gap = 8;
+    const cardScale = Math.min(0.55, (w - 40 - (targetCols - 1) * gap) / (targetCols * CARD.WIDTH));
+    const cardW = CARD.WIDTH * cardScale;
+    const cardH = CARD.HEIGHT * cardScale;
+    const cols = Math.floor((w - 20) / (cardW + gap));
+    const startY = 52;
+    const startX = (w - cols * (cardW + gap) + gap) / 2 + cardW / 2;
+
+    // Scroll container
+    const scrollContainer = this.add.container(0, 0);
+    group.add(scrollContainer);
+
+    const cardObjects: CardObject[] = [];
+    const hoverPreviewGroup = this.add.container(0, 0).setDepth(700);
+    group.add(hoverPreviewGroup);
+
+    for (let i = 0; i < allCards.length; i++) {
+      const def = allCards[i];
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cx = startX + col * (cardW + gap);
+      const cy = startY + row * (cardH + gap) + cardH / 2;
+
+      // Create a fake CardInstance to resolve
+      const inst: import('../../types/card.ts').CardInstance = {
+        instanceId: `cheat_sel_${i}`,
+        defId: def.id,
+        modifiers: [],
+      };
+      const resolved = resolveCard(inst);
+      const card = CardFactory.create(this, resolved, cx, cy, cardScale);
+      card.setInteractive(
+        new Phaser.Geom.Rectangle(
+          -CARD.WIDTH / 2, -CARD.HEIGHT / 2, CARD.WIDTH, CARD.HEIGHT
+        ),
+        Phaser.Geom.Rectangle.Contains
+      );
+
+      // Check if card is in pool/deck/rival
+      const inDeck = this.gm.state.river!.deck.some(c => c.defId === def.id);
+      const inRival = this.gm.state.rivalHand.some(c => c.defId === def.id);
+      const inRiver = this.gm.state.river!.cards.some(c => c.defId === def.id);
+      const inHand = this.gm.state.hand.cards.some(c => c.defId === def.id);
+
+      // Dim cards already in hand or river
+      if (inHand || inRiver) {
+        card.setAlpha(0.4);
+      }
+
+      // Source indicator
+      let sourceLabel = '';
+      if (inDeck) sourceLabel = '📦';
+      else if (inRival) sourceLabel = '👁';
+      else if (!inHand && !inRiver) sourceLabel = '✨';
+
+      if (sourceLabel) {
+        const badge = this.add.text(cx + cardW / 2 - 4, cy - cardH / 2 + 2, sourceLabel, {
+          fontSize: `${Math.max(12, Math.round(14 * cardScale))}px`,
+          resolution: 2,
+        }).setOrigin(1, 0);
+        scrollContainer.add(badge);
+      }
+
+      // Hover preview
+      card.on('pointerover', () => {
+        hoverPreviewGroup.removeAll(true);
+        const previewScale = this.scales.hand * 1.5;
+        const previewCard = CardFactory.create(this, resolved, w / 2, h / 2, previewScale);
+        hoverPreviewGroup.add(previewCard);
+
+        // Shadow
+        const shadow = this.add.graphics();
+        shadow.fillStyle(0x000000, 0.4);
+        shadow.fillRoundedRect(
+          w / 2 - CARD.WIDTH * previewScale / 2 + 4,
+          h / 2 - CARD.HEIGHT * previewScale / 2 + 4,
+          CARD.WIDTH * previewScale,
+          CARD.HEIGHT * previewScale,
+          8
+        );
+        shadow.setDepth(-1);
+        hoverPreviewGroup.add(shadow);
+        hoverPreviewGroup.sendToBack(shadow);
+      });
+      card.on('pointerout', () => {
+        hoverPreviewGroup.removeAll(true);
+      });
+
+      // Click to add to discard
+      card.on('pointerdown', (p: Phaser.Input.Pointer) => {
+        p.event.stopPropagation();
+        this.cheatAddToDiscard(def.id);
+        group.destroy();
+        this.cheatSelectorGroup = null;
+      });
+
+      scrollContainer.add(card);
+      cardObjects.push(card);
+    }
+
+    // Scroll support
+    const maxRows = Math.ceil(allCards.length / cols);
+    const totalH = maxRows * (cardH + gap) + startY + 20;
+    if (totalH > h) {
+      this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _gos: any, _dx: number, dy: number) => {
+        if (!this.cheatSelectorGroup) return;
+        const newY = Phaser.Math.Clamp(scrollContainer.y - dy * 0.5, -(totalH - h), 0);
+        scrollContainer.y = newY;
+      });
+    }
+  }
+
+  private cheatAddToDiscard(defId: string): void {
+    if (!this.gm.state.river) return;
+    const state = this.gm.state;
+
+    // Try to find in deck first
+    const deckIdx = state.river!.deck.findIndex(c => c.defId === defId);
+    if (deckIdx >= 0) {
+      const card = state.river!.deck[deckIdx];
+      const newDeck = [...state.river!.deck];
+      newDeck.splice(deckIdx, 1);
+      this.gm.state = {
+        ...state,
+        river: { cards: [...state.river!.cards, card], deck: newDeck },
+      };
+      this.gm.events.emit('stateChanged', this.gm.state);
+      return;
+    }
+
+    // Try to find in rival hand
+    const rivalIdx = state.rivalHand.findIndex(c => c.defId === defId);
+    if (rivalIdx >= 0) {
+      const card = state.rivalHand[rivalIdx];
+      const newRival = [...state.rivalHand];
+      newRival.splice(rivalIdx, 1);
+      this.gm.state = {
+        ...state,
+        rivalHand: newRival,
+        river: { cards: [...state.river!.cards, card], deck: state.river!.deck },
+      };
+      this.gm.events.emit('stateChanged', this.gm.state);
+      return;
+    }
+
+    // Not in pool — create a new instance
+    const newCard: import('../../types/card.ts').CardInstance = {
+      instanceId: `cheat_discard_${Date.now()}`,
+      defId,
+      modifiers: [],
+    };
+    this.gm.state = {
+      ...state,
+      river: { cards: [...state.river!.cards, newCard], deck: state.river!.deck },
+    };
+    this.gm.events.emit('stateChanged', this.gm.state);
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  ON-END EFFECT POPUP
+  // ═══════════════════════════════════════════════════════
+
+  private onEndPopupGroup: Phaser.GameObjects.Container | null = null;
+
+  private showOnEndPickPopup(): void {
+    // Clean up previous popup and hover state
+    if (this.onEndPopupGroup) { this.onEndPopupGroup.destroy(); this.onEndPopupGroup = null; }
+    this.clearHoverShadow();
+    this.clearKeywordTooltips();
+    this.hoveredRiverIndex = -1;
+
+    const choice = this.gm.state.pendingChoice!;
+    const riverCards = choice.options as import('../../types/card.ts').CardInstance[];
+    if (riverCards.length === 0) { this.gm.resolveOnEndChoice([]); return; }
+
+    const w = this.width;
+    const h = this.height;
+    const group = this.add.container(0, 0).setDepth(500);
+    this.onEndPopupGroup = group;
+
+    // Dark overlay
+    const overlay = this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.7).setInteractive();
+    group.add(overlay);
+
+    // Panel background
+    const panelW = Math.min(w - 40, 800);
+    const panelH = Math.min(h - 60, 600);
+    const panelX = w / 2;
+    const panelY = h / 2;
+    const panel = this.add.rectangle(panelX, panelY, panelW, panelH, 0xfdf6e3, 1).setStrokeStyle(3, 0x8b6914);
+    panel.setOrigin(0.5);
+    group.add(panel);
+
+    // Source card indicator (e.g. "Necromancer — On End")
+    const sourceName = choice.sourceCardName || 'Unknown';
+    const sourceLabel = this.add.text(panelX, panelY - panelH / 2 + 20, `☠ ${sourceName} — On End`, {
+      fontFamily: FONTS.body,
+      fontSize: '18px',
+      color: '#6b3a6b',
+      fontStyle: 'bold',
+      resolution: 2,
+    }).setOrigin(0.5, 0);
+    group.add(sourceLabel);
+
+    // Prompt text
+    const promptText = this.add.text(panelX, panelY - panelH / 2 + 50, choice.prompt, {
+      fontFamily: FONTS.body,
+      fontSize: '15px',
+      color: '#333',
+      resolution: 2,
+    }).setOrigin(0.5, 0);
+    group.add(promptText);
+
+    // Card grid
+    const cardScale = 0.7;
+    const cardSpacing = CARD.WIDTH * cardScale + 10;
+    const maxCols = Math.max(1, Math.floor((panelW - 40) / cardSpacing));
+    const gridStartY = panelY - panelH / 2 + 90;
+    const gridStartX = panelX - (Math.min(riverCards.length, maxCols) * cardSpacing - 10) / 2 + (CARD.WIDTH * cardScale) / 2;
+
+    let selectedIndex = -1;
+    const cardObjects: Phaser.GameObjects.Container[] = [];
+    const highlights: Phaser.GameObjects.Rectangle[] = [];
+
+    for (let i = 0; i < riverCards.length; i++) {
+      const col = i % maxCols;
+      const row = Math.floor(i / maxCols);
+      const cx = gridStartX + col * cardSpacing;
+      const cy = gridStartY + row * (CARD.HEIGHT * cardScale + 10) + (CARD.HEIGHT * cardScale) / 2;
+
+      const resolved = resolveCard(riverCards[i]);
+      const cardObj = CardFactory.create(this, resolved, cx, cy, cardScale);
+      cardObj.setDepth(501);
+
+      // Selection highlight (hidden initially)
+      const hl = this.add.rectangle(cx, cy, CARD.WIDTH * cardScale + 6, CARD.HEIGHT * cardScale + 6, 0x22c55e, 0.4)
+        .setStrokeStyle(3, 0x22c55e)
+        .setVisible(false)
+        .setDepth(500);
+      highlights.push(hl);
+
+      // Make card interactive
+      cardObj.setSize(CARD.WIDTH * cardScale, CARD.HEIGHT * cardScale);
+      cardObj.setInteractive({ useHandCursor: true });
+      const idx = i;
+      const resolvedCopy = resolved; // capture for hover
+
+      cardObj.on('pointerdown', () => {
+        // Deselect previous
+        if (selectedIndex >= 0) highlights[selectedIndex].setVisible(false);
+        selectedIndex = idx;
+        highlights[idx].setVisible(true);
+        confirmBtn.setAlpha(1);
+        confirmBg.setInteractive({ useHandCursor: true });
+      });
+
+      cardObj.on('pointerover', () => {
+        if (hoverPreview) { hoverPreview.destroy(); hoverPreview = null; }
+        const previewScale = this.scales.hand * 1.5;
+        const previewW = CARD.WIDTH * previewScale;
+        const previewH = CARD.HEIGHT * previewScale;
+        // Position preview to the right of the card, or left if it would overflow
+        let px = cx + (CARD.WIDTH * cardScale) / 2 + previewW / 2 + 12;
+        if (px + previewW / 2 > panelX + panelW / 2 - 10) {
+          px = cx - (CARD.WIDTH * cardScale) / 2 - previewW / 2 - 12;
+        }
+        let py = Phaser.Math.Clamp(cy, panelY - panelH / 2 + previewH / 2 + 10, panelY + panelH / 2 - previewH / 2 - 10);
+        hoverPreview = new CardObject(this, px, py, resolvedCopy);
+        hoverPreview.setScale(previewScale);
+        hoverPreview.setDepth(600);
+      });
+
+      cardObj.on('pointerout', () => {
+        if (hoverPreview) { hoverPreview.destroy(); hoverPreview = null; }
+      });
+
+      group.add(hl);
+      group.add(cardObj);
+      cardObjects.push(cardObj);
+    }
+
+    // Hover preview card (managed outside the group so it renders on top)
+    let hoverPreview: CardObject | null = null;
+
+    // Confirm button (disabled until selection)
+    const btnY = panelY + panelH / 2 - 40;
+    const confirmBg = this.add.rectangle(panelX, btnY, 200, 44, 0x22c55e, 1).setOrigin(0.5);
+    confirmBg.setStrokeStyle(2, 0x1a9e48);
+    const confirmLabel = this.add.text(panelX, btnY, 'Confirm', {
+      fontFamily: FONTS.display,
+      fontSize: '20px',
+      color: '#fff',
+      resolution: 2,
+    }).setOrigin(0.5);
+    const confirmBtn = this.add.container(0, 0, [confirmBg, confirmLabel]).setAlpha(0.4);
+
+    confirmBg.on('pointerdown', () => {
+      if (selectedIndex < 0) return;
+      // Clean up hover preview
+      if (hoverPreview) { hoverPreview.destroy(); hoverPreview = null; }
+      // Clean up popup
+      group.destroy();
+      this.onEndPopupGroup = null;
+      // Resolve the choice
+      this.gm.resolveOnEndChoice([selectedIndex]);
+    });
+
+    group.add(confirmBtn);
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  RIVAL HAND PICK POPUP (Hedge Witch)
+  // ═══════════════════════════════════════════════════════
+
+  private showRivalHandPickPopup(): void {
+    if (this.onEndPopupGroup) { this.onEndPopupGroup.destroy(); this.onEndPopupGroup = null; }
+    // Clear any lingering hover state and reset river cards to normal
+    this.clearHoverShadow();
+    this.clearKeywordTooltips();
+    this.hoveredRiverIndex = -1;
+    this.clearRivalMarkers();
+    // Reset all river card scales
+    for (const c of this.riverCards) { this.tweens.killTweensOf(c); c.setScale(this.scales.river); c.setDepth(10); }
+
+    const choice = this.gm.state.pendingChoice!;
+    const rivalCards = this.gm.state.rivalHand;
+    if (rivalCards.length === 0) { this.gm.resolveRivalHandPick(''); return; }
+
+    const w = this.width;
+    const h = this.height;
+    const group = this.add.container(0, 0).setDepth(500);
+    this.onEndPopupGroup = group;
+
+    // Dark overlay
+    const overlay = this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.7).setInteractive();
+    group.add(overlay);
+
+    // Panel
+    const panelW = Math.min(w - 40, 800);
+    const panelH = Math.min(h - 60, 600);
+    const panelX = w / 2;
+    const panelY = h / 2;
+    const panel = this.add.rectangle(panelX, panelY, panelW, panelH, 0xfdf6e3, 1).setStrokeStyle(3, 0x6b3a6b);
+    panel.setOrigin(0.5);
+    group.add(panel);
+
+    // Source card indicator
+    const sourceName = choice.sourceCardName || 'Hedge Witch';
+    const sourceLabel = this.add.text(panelX, panelY - panelH / 2 + 20, `🔮 ${sourceName} — On Discard`, {
+      fontFamily: FONTS.body,
+      fontSize: '18px',
+      color: '#6b3a6b',
+      fontStyle: 'bold',
+      resolution: 2,
+    }).setOrigin(0.5, 0);
+    group.add(sourceLabel);
+
+    // Prompt
+    const promptText = this.add.text(panelX, panelY - panelH / 2 + 50, choice.prompt, {
+      fontFamily: FONTS.body,
+      fontSize: '15px',
+      color: '#333',
+      resolution: 2,
+    }).setOrigin(0.5, 0);
+    group.add(promptText);
+
+    // Card grid
+    const cardScale = 0.7;
+    const cardSpacing = CARD.WIDTH * cardScale + 10;
+    const maxCols = Math.max(1, Math.floor((panelW - 40) / cardSpacing));
+    const gridStartY = panelY - panelH / 2 + 90;
+    const gridStartX = panelX - (Math.min(rivalCards.length, maxCols) * cardSpacing - 10) / 2 + (CARD.WIDTH * cardScale) / 2;
+
+    let selectedInstanceId = '';
+    const highlights: Phaser.GameObjects.Rectangle[] = [];
+    let hoverPreview: CardObject | null = null;
+
+    for (let i = 0; i < rivalCards.length; i++) {
+      const col = i % maxCols;
+      const row = Math.floor(i / maxCols);
+      const cx = gridStartX + col * cardSpacing;
+      const cy = gridStartY + row * (CARD.HEIGHT * cardScale + 10) + (CARD.HEIGHT * cardScale) / 2;
+
+      const resolved = resolveCard(rivalCards[i]);
+      const cardObj = CardFactory.create(this, resolved, cx, cy, cardScale);
+      cardObj.setDepth(501);
+
+      // Highlight
+      const hl = this.add.rectangle(cx, cy, CARD.WIDTH * cardScale + 6, CARD.HEIGHT * cardScale + 6, 0xc4433a, 0.4)
+        .setStrokeStyle(3, 0xc4433a)
+        .setVisible(false)
+        .setDepth(500);
+      highlights.push(hl);
+
+      // Make interactive
+      cardObj.setSize(CARD.WIDTH * cardScale, CARD.HEIGHT * cardScale);
+      cardObj.setInteractive({ useHandCursor: true });
+      const instId = rivalCards[i].instanceId;
+      const resolvedCopy = resolved;
+      const idx = i;
+
+      cardObj.on('pointerdown', () => {
+        highlights.forEach(h => h.setVisible(false));
+        selectedInstanceId = instId;
+        highlights[idx].setVisible(true);
+        confirmBtn.setAlpha(1);
+        confirmBg.setInteractive({ useHandCursor: true });
+      });
+
+      cardObj.on('pointerover', () => {
+        if (hoverPreview) { hoverPreview.destroy(); hoverPreview = null; }
+        const previewScale = this.scales.hand * 1.5;
+        const previewW = CARD.WIDTH * previewScale;
+        let px = cx + (CARD.WIDTH * cardScale) / 2 + previewW / 2 + 12;
+        if (px + previewW / 2 > panelX + panelW / 2 - 10) {
+          px = cx - (CARD.WIDTH * cardScale) / 2 - previewW / 2 - 12;
+        }
+        const previewH = CARD.HEIGHT * previewScale;
+        const py = Phaser.Math.Clamp(cy, panelY - panelH / 2 + previewH / 2 + 10, panelY + panelH / 2 - previewH / 2 - 10);
+        hoverPreview = new CardObject(this, px, py, resolvedCopy);
+        hoverPreview.setScale(previewScale);
+        hoverPreview.setDepth(600);
+      });
+
+      cardObj.on('pointerout', () => {
+        if (hoverPreview) { hoverPreview.destroy(); hoverPreview = null; }
+      });
+
+      group.add(hl);
+      group.add(cardObj);
+    }
+
+    // Confirm button
+    const btnY = panelY + panelH / 2 - 40;
+    const confirmBg = this.add.rectangle(panelX, btnY, 200, 44, 0xc4433a, 1).setOrigin(0.5);
+    confirmBg.setStrokeStyle(2, 0x9a2f2f);
+    const confirmLabel = this.add.text(panelX, btnY, 'Discard to River', {
+      fontFamily: FONTS.display,
+      fontSize: '18px',
+      color: '#fff',
+      resolution: 2,
+    }).setOrigin(0.5);
+    const confirmBtn = this.add.container(0, 0, [confirmBg, confirmLabel]).setAlpha(0.4);
+
+    confirmBg.on('pointerdown', () => {
+      if (!selectedInstanceId) return;
+      if (hoverPreview) { hoverPreview.destroy(); hoverPreview = null; }
+      group.destroy();
+      this.onEndPopupGroup = null;
+      this.gm.resolveRivalHandPick(selectedInstanceId);
+    });
+
+    group.add(confirmBtn);
   }
 
   // ═══════════════════════════════════════════════════════

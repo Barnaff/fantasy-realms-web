@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.14.0 — 2026-03-30
+
+### New Features
+- **Rival card-taker**: a rival entity competes for river cards each turn, showing intent via eye icon, prioritizing encounter modifier tags
+- **Ongoing effects**: new keyword for persistent effects while card is in hand (e.g., Blood Moon blocks river draws)
+- **On Discard triggers**: cards can execute effects when discarded from hand (Lich Lord, Phoenix, Hedge Witch, Blood Moon)
+- **Exhaust mechanic**: cards can be removed from the current encounter with burn/dissolve animation and fire particles
+- **On End effects**: cards trigger abilities before final scoring (Necromancer: pick a card from discard to add to hand)
+- **Discard scoring**: new `bonusPerTagInDiscard` effect for cards that score based on river contents (Ghoul Pack)
+- **Firestore as single source of truth**: card data loaded from Firestore, local archive as fallback only
+- **Firebase admin CLI**: `scripts/firebase-cards.ts` for reading/updating cards directly in Firestore
+- **Cheat: Add to Discard**: debug card selector to inject any card into the discard area
+
+### Card Updates
+- **Blood Moon**: base 40, Ongoing: cannot draw from river, On Discard: Exhaust
+- **Ghoul Pack**: base 7, +5 for each Army/Leader/Beast/Wizard in discard area
+- **Revenant Knight**: -8 Leader penalty replaced with "BLANKED if any Leader is present"
+- **Dire Wolf**: base 6, +8 with Leader or Wizard OR +16 with Beast Master, flood penalty removed
+- **Soul Gem**: base 0, +4 for each card in discard
+- **Holy Relic**: +50 if all cards in hand are non-blanked and different suites
+- **Hedge Witch**: base 19, On Discard: view rival cards and discard one, Exhaust
+- **Necromancer**: On End: add a card from discard to hand (selection popup)
+- **Phoenix**: On Discard: permanently +3 base score for rest of run, Exhaust
+
+### Improvements
+- River draw blocking: locked river cards shown dimmed with lock icons when Blood Moon is in hand
+- Card selection popups with blocking overlay (Necromancer, Hedge Witch) prevent clicks on cards beneath
+- Rival intent shown as pulsing eye icon on targeted river card or deck
+- Rival take animation: card slides off-screen with toast notification
+- Exhaust animation: fire particles, shrink/dissolve, purple toast
+- Ongoing effect text rendered in gold/brown italic on cards
+- Admin dashboard updated with all new mechanics (ongoing, exhaust, discard effects, on-end)
+- Card hover previews on On End selection popup and deck pool viewer
+- Project rules updated: Firestore single source of truth, card update workflow
+
+### Fixes
+- River draw properly blocked at scene level (not just GameManager) when Blood Moon in hand
+
 ## 0.13.0 — 2026-03-30
 
 ### Improvements

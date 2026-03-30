@@ -16,21 +16,23 @@ export interface GroupedEffect {
  *   "+5 if any Wizard is present" + "+5 if any Leader is present" → "+5 if any Wizard or Leader is present"
  */
 export function groupEffects(effects: ScoringEffect[]): GroupedEffect[] {
+  // Filter out hidden effects (used for display-only purposes, e.g. second tag check in OR groups)
+  const visible = effects.filter(e => !(e as any).hidden);
   const result: GroupedEffect[] = [];
   const used = new Set<number>();
 
-  for (let i = 0; i < effects.length; i++) {
+  for (let i = 0; i < visible.length; i++) {
     if (used.has(i)) continue;
 
-    const eff = effects[i];
+    const eff = visible[i];
     const group = [eff];
     used.add(i);
 
     // Find similar effects to merge with
-    for (let j = i + 1; j < effects.length; j++) {
+    for (let j = i + 1; j < visible.length; j++) {
       if (used.has(j)) continue;
-      if (canGroup(eff, effects[j])) {
-        group.push(effects[j]);
+      if (canGroup(eff, visible[j])) {
+        group.push(visible[j]);
         used.add(j);
       }
     }
@@ -51,8 +53,8 @@ export function groupEffects(effects: ScoringEffect[]): GroupedEffect[] {
   // Insert "- or -" separators between consecutive orGroup effects
   const withSeparators: GroupedEffect[] = [];
   for (let i = 0; i < result.length; i++) {
-    const curr = effects.find(e => e.description === result[i].description);
-    const prev = i > 0 ? effects.find(e => e.description === result[i - 1].description) : undefined;
+    const curr = visible.find(e => e.description === result[i].description);
+    const prev = i > 0 ? visible.find(e => e.description === result[i - 1].description) : undefined;
     if (prev?.orGroup && curr?.orGroup && prev.orGroup === curr.orGroup) {
       withSeparators.push({ description: '- or -', effectId: '_separator', params: {}, isSeparator: true });
     }

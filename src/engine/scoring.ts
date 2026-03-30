@@ -14,6 +14,8 @@ export function resolveCard(instance: CardInstance): ResolvedCard {
   let baseValue = def.baseValue;
   const scoringEffects = [...def.scoringEffects];
   const discardEffect = def.discardEffect;
+  const onEndEffect = def.onEndEffect ?? null;
+  const ongoingEffect = def.ongoingEffect ?? null;
 
   for (const mod of instance.modifiers) {
     switch (mod.type) {
@@ -43,6 +45,8 @@ export function resolveCard(instance: CardInstance): ResolvedCard {
     rarity: def.rarity,
     scoringEffects,
     discardEffect,
+    onEndEffect,
+    ongoingEffect,
     art: def.art,
     flavor: def.flavor,
   };
@@ -54,6 +58,8 @@ type ScoringFn = (
   self: ResolvedCard,
   hand: ResolvedCard[],
   params: Record<string, unknown>,
+  discard: ResolvedCard[],
+  blankedIds?: Set<string>,
 ) => number;
 
 const scoringRegistry: Record<string, ScoringFn> = {
@@ -159,6 +165,31 @@ const scoringRegistry: Record<string, ScoringFn> = {
     // Utility effect — actual logic is handled in the scoreHand pre-pass.
     return 0;
   },
+
+  bonusPerTagInDiscard: (_self, _hand, params, discard) => {
+    const tags = params.tags as Tag[] | undefined;
+    const tag = params.tag as Tag | undefined;
+    const bonus = params.bonus as number;
+    // Support either a single tag or multiple tags
+    const targetTags = tags || (tag ? [tag] : []);
+    const count = discard.filter(c => c.tags.some(t => targetTags.includes(t))).length;
+    return count * bonus;
+  },
+
+  bonusIfAllUniqueSuitsNonBlanked: (_self, hand, params, _discard, blankedIds) => {
+    const bonus = params.bonus as number;
+    // Check no cards are blanked
+    if (blankedIds && blankedIds.size > 0) return 0;
+    // Check all cards have unique primary tags (first tag = suit)
+    const suits = new Set<string>();
+    for (const card of hand) {
+      const suit = card.tags[0];
+      if (!suit) return 0;
+      if (suits.has(suit)) return 0;
+      suits.add(suit);
+    }
+    return bonus;
+  },
 };
 
 // --- Blanking Registry ---
@@ -239,9 +270,13 @@ export function scoreHand(
   handInstances: CardInstance[],
   relics: RelicInstance[] = [],
   encounterModifiers: { tag: Tag; value: number }[] = [],
+  discardInstances: CardInstance[] = [],
 ): ScoreResult {
   // Resolve all cards
   let resolved = handInstances.map(resolveCard);
+
+  // Resolve discard pile (river cards) for discard-based scoring
+  const resolvedDiscard = discardInstances.map(resolveCard);
 
   // Apply encounter modifiers (tag bonuses/penalties per level theme)
   for (const mod of encounterModifiers) {
@@ -327,7 +362,7 @@ export function scoreHand(
       const fn = scoringRegistry[effect.effectId];
       if (!fn) continue;
 
-      const value = fn(card, resolved, effect.params);
+      const value = fn(card, resolved, effect.params, resolvedDiscard, blankedInstanceIds);
 
       // orGroup: mark group as resolved only if this effect produced a non-zero value
       if (effect.orGroup && value !== 0) {

@@ -12,6 +12,43 @@ type DiscardEffectFn = (
 ) => GameState;
 
 const discardRegistry: Record<string, DiscardEffectFn> = {
+  phoenixOnDiscard: (state, card, _params, _rng) => {
+    if (!state.run) return state;
+    const bonusAmount = 3;
+
+    // Find the Phoenix in the pool and add a permanent baseValue modifier
+    const newPool = state.run.pool.map(inst => {
+      if (inst.defId === card.defId) {
+        return {
+          ...inst,
+          modifiers: [...inst.modifiers, { type: 'changeBaseValue' as const, payload: bonusAmount }],
+        };
+      }
+      return inst;
+    });
+
+    // Find the Phoenix card that was just discarded (now in river) and exhaust it
+    // The discarded card was already moved to river.cards by GameManager before this runs
+    const discardedInRiver = state.river?.cards.find(c => c.defId === card.defId);
+    const newRiverCards = state.river ? state.river.cards.filter(c => c !== discardedInRiver) : [];
+    const exhausted = discardedInRiver
+      ? [...state.exhaustedCards, discardedInRiver]
+      : state.exhaustedCards;
+
+    return {
+      ...state,
+      run: { ...state.run, pool: newPool },
+      river: state.river ? { ...state.river, cards: newRiverCards } : null,
+      exhaustedCards: exhausted,
+      actionLog: [
+        ...state.actionLog,
+        ...(discardedInRiver
+          ? [{ type: 'exhaust' as const, cardInstanceId: discardedInRiver.instanceId, cardName: card.name }]
+          : []),
+      ],
+    };
+  },
+
   removeFromRiver: (state, _card, params, rng) => {
     if (!state.river) return state;
     const count = params.count as number;
@@ -152,6 +189,103 @@ const discardRegistry: Record<string, DiscardEffectFn> = {
 
     const { river, discardPile } = removeFromRiver(state.river, indicesToRemove, state.discardPile);
     return { ...state, river, discardPile };
+  },
+
+  lichLordOnDiscard: (state, _card, _params, _rng) => {
+    if (!state.river) return state;
+
+    // Find the first Leader in river.cards
+    let leaderIdx = -1;
+    let leaderName = '';
+    for (let i = 0; i < state.river.cards.length; i++) {
+      const resolved = resolveCard(state.river.cards[i]);
+      if (resolved.tags.includes('Leader' as Tag)) {
+        leaderIdx = i;
+        leaderName = resolved.name;
+        break;
+      }
+    }
+
+    if (leaderIdx === -1) return state; // No Leader in river — nothing happens
+
+    // Exhaust the Leader (remove from river, add to exhaustedCards)
+    const exhaustedCard = state.river.cards[leaderIdx];
+    const newRiverCards = [...state.river.cards];
+    newRiverCards.splice(leaderIdx, 1);
+
+    // Find first Undead in deck and move to river
+    let newDeck = [...state.river.deck];
+    const undeadDeckIdx = newDeck.findIndex(c => {
+      const r = resolveCard(c);
+      return r.tags.includes('Undead' as Tag);
+    });
+
+    let addedCards: CardInstance[] = [];
+    if (undeadDeckIdx !== -1) {
+      addedCards = [newDeck[undeadDeckIdx]];
+      newDeck = [...newDeck.slice(0, undeadDeckIdx), ...newDeck.slice(undeadDeckIdx + 1)];
+    }
+
+    return {
+      ...state,
+      river: { cards: [...newRiverCards, ...addedCards], deck: newDeck },
+      exhaustedCards: [...state.exhaustedCards, exhaustedCard],
+      actionLog: [
+        ...state.actionLog,
+        { type: 'exhaust' as const, cardInstanceId: exhaustedCard.instanceId, cardName: leaderName },
+      ],
+    };
+  },
+
+  exhaustOnDiscard: (state, card, _params, _rng) => {
+    if (!state.river) return state;
+    // Find the card in river (it was just discarded there)
+    const idx = state.river.cards.findIndex(c => c.defId === card.defId);
+    if (idx < 0) return state;
+    const exhausted = state.river.cards[idx];
+    const newRiverCards = [...state.river.cards];
+    newRiverCards.splice(idx, 1);
+    return {
+      ...state,
+      river: { cards: newRiverCards, deck: state.river.deck },
+      exhaustedCards: [...state.exhaustedCards, exhausted],
+      actionLog: [
+        ...state.actionLog,
+        { type: 'exhaust' as const, cardInstanceId: exhausted.instanceId, cardName: card.name },
+      ],
+    };
+  },
+
+  hedgeWitchOnDiscard: (state, card, _params, _rng) => {
+    // If rival has cards, show a selection popup; otherwise just exhaust
+    if (state.rivalHand.length === 0) {
+      // No rival cards to reveal — just exhaust Hedge Witch
+      const hwInRiver = state.river?.cards.find(c => c.defId === card.defId);
+      if (!hwInRiver) return state;
+      return {
+        ...state,
+        river: { cards: state.river!.cards.filter(c => c.instanceId !== hwInRiver.instanceId), deck: state.river!.deck },
+        exhaustedCards: [...state.exhaustedCards, hwInRiver],
+        actionLog: [
+          ...state.actionLog,
+          { type: 'exhaust' as const, cardInstanceId: hwInRiver.instanceId, cardName: card.name },
+        ],
+      };
+    }
+
+    // Set pending choice — player picks a rival card to discard to river
+    return {
+      ...state,
+      pendingChoice: {
+        type: 'pick_from_rival_hand' as const,
+        options: state.rivalHand.map(c => c.instanceId),
+        minSelections: 1,
+        maxSelections: 1,
+        prompt: 'Choose a card from the rival\'s hand to discard to the river',
+        sourceCardName: card.name,
+        sourceCardId: card.defId,
+      },
+    };
   },
 
   drawTaggedFromRiver: (state, _card, params, _rng) => {

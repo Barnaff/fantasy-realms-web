@@ -7,7 +7,7 @@
 
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../src/firebase/config.ts';
-import { CARD_DEFS } from '../src/data/cards.ts';
+import { CARD_DEFS } from '../src/data/cards.archive.ts';
 import { RELIC_DEFS } from '../src/data/relics.ts';
 import { EVENT_DEFS } from '../src/data/events.ts';
 import { ENCOUNTER_THEMES } from '../src/data/encounterThemes.ts';

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../../src/firebase/config';
+import { CARD_DEFS } from '../../src/data/cards.archive';
 import { EffectEditorRow, EFFECT_META, type ScoringEffect } from '../components/EffectEditor';
 
 const ALL_TAGS = [
@@ -99,6 +100,28 @@ export default function CardsPage() {
     }
   };
 
+  const syncFromCode = async () => {
+    if (!confirm(`This will overwrite ALL ${cards.length} cards in Firestore with the ${CARD_DEFS.length} cards from the code. Art URLs will be preserved where card IDs match.\n\nContinue?`)) return;
+    try {
+      // Build a map of existing art URLs by card ID
+      const artMap = new Map<string, string>();
+      for (const c of cards) {
+        if ((c as any).artUrl) artMap.set(c.id, (c as any).artUrl);
+      }
+      // Merge: use code definitions but preserve existing art URLs
+      const merged = CARD_DEFS.map(codeDef => ({
+        ...codeDef,
+        ...(artMap.has(codeDef.id) ? { artUrl: artMap.get(codeDef.id) } : {}),
+      }));
+      await setDoc(doc(db, 'gameData', 'cards'), { items: merged });
+      setCards(merged as Card[]);
+      showToast(`Synced ${merged.length} cards from code to Firestore`);
+    } catch (err) {
+      console.error('Sync failed:', err);
+      showToast('Sync from code failed', 'error');
+    }
+  };
+
   const addCard = () => {
     const newCard: Card = {
       id: `card-${Date.now()}`,
@@ -143,6 +166,14 @@ export default function CardsPage() {
       <div className="page-header">
         <h2>Cards ({cards.length})</h2>
         <button className="btn btn-primary" onClick={addCard}>+ Add Card</button>
+        <button
+          className="btn"
+          onClick={syncFromCode}
+          style={{ background: '#7c3aed', color: '#fff', marginLeft: 8 }}
+          title="Overwrite Firestore cards with definitions from code (preserves art URLs)"
+        >
+          ⟳ Sync from Code ({CARD_DEFS.length})
+        </button>
       </div>
 
       <div className="toolbar">
@@ -375,7 +406,12 @@ function CardMiniPreview({ card }: { card: Card }) {
             ⤵ {card.discardEffect.description}
           </div>
         )}
-        {(!card.scoringEffects || card.scoringEffects.length === 0) && !card.discardEffect && (
+        {card.onEndEffect && (
+          <div style={{ fontSize: 9, color: '#6b3a6b', lineHeight: 1.3 }}>
+            ☠ On End: {card.onEndEffect.description}
+          </div>
+        )}
+        {(!card.scoringEffects || card.scoringEffects.length === 0) && !card.discardEffect && !card.onEndEffect && (
           <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>No effects</div>
         )}
       </div>

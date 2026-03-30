@@ -72,12 +72,13 @@ export class PostEncounterScene extends Phaser.Scene {
       // Layout options vertically, cards horizontal within each option
       const optionGap = 12;
       const bounds = LayoutHelper.getLayoutBounds(width, height);
-      const btnSpace = 110; // space for buttons at bottom
+      const btnSpace = 120; // space for buttons at bottom (skip + add to pool + margin)
       const rowPadding = 26; // label + margins per option row
       const availableH = height - labelY - btnSpace;
       const maxScaleW = (bounds.layoutW - 80) / (3 * CARD.WIDTH + 20);
       const maxScaleV = (availableH / cardOptions.length - rowPadding) / CARD.HEIGHT;
-      this.baseScale = Math.min(0.9, maxScaleW, maxScaleV);
+      // Enforce a minimum scale so cards remain readable
+      this.baseScale = Math.max(0.35, Math.min(0.9, maxScaleW, maxScaleV));
       const cardW = CARD.WIDTH * this.baseScale;
       const cardH = CARD.HEIGHT * this.baseScale;
 
@@ -158,9 +159,10 @@ export class PostEncounterScene extends Phaser.Scene {
       }).setOrigin(0.5);
     }
 
-    // ── Select button (hidden until an option is selected) ──
-    const selectBtnY = Math.min(height * 0.85, height - 95);
+    // ── Buttons anchored to bottom ──
     const btnW = Math.min(width * 0.6, 240);
+    const skipBtnY = height - 30;
+    const selectBtnY = skipBtnY - 50;
 
     this.selectBtn = new ButtonObject(this, cx, selectBtnY, 'Add to Pool', {
       width: btnW,
@@ -175,9 +177,8 @@ export class PostEncounterScene extends Phaser.Scene {
       },
     });
     this.selectBtn.setVisible(false);
+    this.selectBtn.setDepth(10);
 
-    // ── Skip button ──
-    const skipBtnY = Math.min(height * 0.93, height - 45);
     new ButtonObject(this, cx, skipBtnY, 'Skip Reward', {
       width: btnW,
       height: 40,
@@ -187,16 +188,18 @@ export class PostEncounterScene extends Phaser.Scene {
         gm.skipCardReward();
         this.scene.start(gm.state.phase === 'game_over' ? 'GameOverScene' : 'MapScene');
       },
-    });
+    }).setDepth(10);
 
     // ── View Deck button ──
-    this.add.text(12, height - 24, '📋 View Deck', {
+    const deckLabel = this.add.text(12, height - 24, '📋 View Deck', {
       fontFamily: FONTS.body,
       fontSize: '12px',
       color: '#6b5c4e',
       resolution: 2,
     });
+    deckLabel.setDepth(10);
     const deckZone = this.add.zone(60, height - 18, 120, 24).setInteractive({ useHandCursor: true });
+    deckZone.setDepth(10);
     deckZone.on('pointerdown', () => {
       this.scene.pause();
       this.scene.launch('PoolViewerScene', { returnScene: 'PostEncounterScene' });

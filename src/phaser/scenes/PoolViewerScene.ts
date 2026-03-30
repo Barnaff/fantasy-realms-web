@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, FONTS, CARD } from '../../config.ts';
+import { LayoutHelper } from '../systems/LayoutHelper.ts';
 import { CARD_DEF_MAP } from '../../data/cards.ts';
 import { ALL_TAGS, RARITY_COLORS } from '../../types/card.ts';
 import type { CardRarity, Tag } from '../../types/card.ts';
@@ -209,7 +210,7 @@ export class PoolViewerScene extends Phaser.Scene {
     // Update count
     this.countLabel?.setText(`${filtered.length} / ${pool.length} cards`);
 
-    const cardScale = 0.65;
+    const cardScale = 0.8;
     const cardW = CARD.WIDTH * cardScale;
     const cardH = CARD.HEIGHT * cardScale;
     const gap = 8;
@@ -326,7 +327,8 @@ export class PoolViewerScene extends Phaser.Scene {
 
     this.clearHover();
 
-    const previewScale = 1.8;
+    const { width: w2, height: h2 } = this.scale;
+    const previewScale = LayoutHelper.getScales(w2, h2).hand * 1.5;
     const previewH = CARD.HEIGHT * previewScale;
     const { width, height } = this.scale;
     let px = Phaser.Math.Clamp(pointer.x, CARD.WIDTH * previewScale / 2 + 20, width - CARD.WIDTH * previewScale / 2 - 20);

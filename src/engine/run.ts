@@ -1,11 +1,13 @@
-import type { GameState, Encounter, DraftOption } from '../types/game.ts';
+import type { GameState, Encounter, DraftOption, RivalIntent } from '../types/game.ts';
+import type { River } from '../types/game.ts';
+import type { EncounterModifier } from '../types/game.ts';
 import { CARD_DEFS } from '../data/cards.ts';
 import { RELIC_DEF_MAP } from '../data/relics.ts';
 import { SeededRNG, randomSeed, generateId } from '../utils/random.ts';
 import { generateMap } from './map.ts';
 import { createStartingPool } from './pool.ts';
 import { createRiver, dealInitialHand } from './river.ts';
-import { scoreHand } from './scoring.ts';
+import { scoreHand, resolveCard } from './scoring.ts';
 
 export function createInitialGameState(): GameState {
   return {
@@ -15,6 +17,7 @@ export function createInitialGameState(): GameState {
     river: null,
     hand: { cards: [], maxSize: 7 },
     discardPile: [],
+    exhaustedCards: [],
     turnsRemaining: 0,
     turnPhase: 'draw',
     riverDiscardCount: 0,
@@ -24,6 +27,9 @@ export function createInitialGameState(): GameState {
     postEncounterReward: null,
     draftOptions: null,
     actionLog: [],
+    rivalIntent: null,
+    rivalCardsTaken: 0,
+    rivalHand: [],
   };
 }
 
@@ -106,6 +112,7 @@ export function startRun(seed?: number): GameState {
     river: null,
     hand: { cards: [], maxSize: 7 },
     discardPile: [],
+    exhaustedCards: [],
     turnsRemaining: 0,
     turnPhase: 'draw',
     riverDiscardCount: 0,
@@ -115,6 +122,9 @@ export function startRun(seed?: number): GameState {
     postEncounterReward: null,
     draftOptions,
     actionLog: [],
+    rivalIntent: null,
+    rivalCardsTaken: 0,
+    rivalHand: [],
   };
 }
 
@@ -159,6 +169,10 @@ export function startEncounter(
     currentHand = result.hand;
   }
 
+  // Calculate first rival intent
+  const rivalRng = new SeededRNG(state.run.seed + 9999);
+  const rivalIntent = calculateRivalIntent(currentRiver, encounter.modifiers, rivalRng);
+
   return {
     ...state,
     phase: 'player_turn',
@@ -166,6 +180,7 @@ export function startEncounter(
     river: currentRiver,
     hand: currentHand,
     discardPile: [],
+    exhaustedCards: [],
     turnsRemaining: 0,
     turnPhase: 'draw',
     riverDiscardCount: 0,
@@ -176,6 +191,9 @@ export function startEncounter(
       ...state.actionLog,
       { type: 'encounter_started', encounterName: encounter.name },
     ],
+    rivalIntent,
+    rivalCardsTaken: 0,
+    rivalHand: [],
   };
 }
 
@@ -197,4 +215,45 @@ export function navigateToNode(state: GameState, nodeId: string): GameState {
       completedNodeIds: [...state.run.completedNodeIds, nodeId],
     },
   };
+}
+
+/**
+ * Calculate which card the rival intends to take.
+ * Priority: cards matching encounter's positive modifier tags (highest baseValue),
+ * then random river card (60%) or deck (40%).
+ */
+export function calculateRivalIntent(
+  river: River,
+  modifiers: EncounterModifier[] | undefined,
+  rng: SeededRNG,
+): RivalIntent {
+  if (river.cards.length === 0 && river.deck.length === 0) return null;
+  if (river.cards.length === 0) return { type: 'deck' };
+
+  // Positive modifier tags = tags the encounter rewards
+  const positiveTags = (modifiers ?? [])
+    .filter(m => m.value > 0)
+    .map(m => m.tag);
+
+  if (positiveTags.length > 0) {
+    // Find river cards matching positive tags, pick highest baseValue
+    let bestCard: { instanceId: string; baseValue: number } | null = null;
+    for (const inst of river.cards) {
+      const resolved = resolveCard(inst);
+      const matches = resolved.tags.some(t => positiveTags.includes(t));
+      if (matches && (!bestCard || resolved.baseValue > bestCard.baseValue)) {
+        bestCard = { instanceId: inst.instanceId, baseValue: resolved.baseValue };
+      }
+    }
+    if (bestCard) return { type: 'river', cardInstanceId: bestCard.instanceId };
+  }
+
+  // No tag match — 60% random river card, 40% deck
+  if (river.deck.length > 0 && rng.next() < 0.4) {
+    return { type: 'deck' };
+  }
+
+  // Random river card
+  const idx = Math.floor(rng.next() * river.cards.length);
+  return { type: 'river', cardInstanceId: river.cards[idx].instanceId };
 }
