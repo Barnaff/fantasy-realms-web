@@ -15,8 +15,6 @@ import { PoolViewerScene } from './phaser/scenes/PoolViewerScene.ts';
 import { COLORS } from './config.ts';
 import './console.ts';
 
-const dpr = Math.min(window.devicePixelRatio || 1, 2); // cap at 2x to avoid GPU strain on 3x screens
-
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game-container',
@@ -30,7 +28,6 @@ const config: Phaser.Types.Core.GameConfig = {
     antialiasGL: true,
     roundPixels: false,
   },
-  resolution: dpr,
   backgroundColor: COLORS.parchment100,
   scene: [
     BootScene,
